@@ -134,7 +134,7 @@ export function NavBar() {
 
             {/* Mobile bottom nav */}
             <div className="mobile-nav">
-                {links.slice(0, 4).map((link) => (
+                {links.slice(0, isParent ? 4 : 5).map((link) => (
                     <Link
                         key={link.href}
                         href={link.href}
@@ -144,14 +144,16 @@ export function NavBar() {
                         <span>{link.label}</span>
                     </Link>
                 ))}
-                <button
-                    onClick={handleLogout}
-                    className="mobile-nav-item"
-                    style={{ background: "none", border: "none", cursor: "pointer", color: "#c44" }}
-                >
-                    <LogOut size={18} />
-                    <span>Thoát</span>
-                </button>
+                {isParent && (
+                    <button
+                        onClick={handleLogout}
+                        className="mobile-nav-item"
+                        style={{ background: "none", border: "none", cursor: "pointer", color: "#c44" }}
+                    >
+                        <LogOut size={18} />
+                        <span>Thoát</span>
+                    </button>
+                )}
             </div>
 
             <style jsx>{`
