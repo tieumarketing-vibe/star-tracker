@@ -66,10 +66,10 @@ export default function AdminRewardsPage() {
         setTimeout(() => setActionMsg(""), 2000);
     }
 
-    async function handleDeleteRedemption(id: string, childId: string, stars: number) {
+    async function handleDeleteRedemption(id: string, childId: string) {
         if (!confirm("Xóa yêu cầu đổi thưởng? Sao sẽ được hoàn lại.")) return;
         setActionLoading(id);
-        await deleteRedemption(id, childId, stars);
+        await deleteRedemption(id, childId);
         setActionMsg("🗑️ Đã xóa và hoàn sao!");
         await loadData();
         setActionLoading(null);
@@ -245,7 +245,7 @@ export default function AdminRewardsPage() {
                                             <Check size={16} /> Duyệt
                                         </button>
                                         <button
-                                            onClick={() => handleDeleteRedemption(item.id, item.child_id, item.stars_spent)}
+                                            onClick={() => handleDeleteRedemption(item.id, item.child_id)}
                                             disabled={actionLoading === item.id}
                                             className="btn btn-sm"
                                             style={{ background: "#FFF0F0", color: "#c44", border: "none" }}
@@ -286,7 +286,7 @@ export default function AdminRewardsPage() {
                                             {item.status === "approved" ? "✅ Đã duyệt" : "❌ Từ chối"}
                                         </span>
                                         <button
-                                            onClick={() => handleDeleteRedemption(item.id, item.child_id, item.status === "rejected" ? 0 : item.stars_spent)}
+                                            onClick={() => handleDeleteRedemption(item.id, item.child_id)}
                                             disabled={actionLoading === item.id}
                                             className="btn btn-sm"
                                             style={{ background: "transparent", color: "#c44", border: "none", padding: "0.25rem" }}

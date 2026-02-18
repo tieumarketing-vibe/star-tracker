@@ -61,10 +61,10 @@ export default function AdminPage() {
         setTimeout(() => setMessage(""), 2000);
     }
 
-    async function handleDelete(id: string, childId: string, stars: number) {
+    async function handleDelete(id: string, childId: string) {
         if (!confirm("Xóa yêu cầu đổi thưởng? Sao sẽ được hoàn lại.")) return;
         setLoading(id);
-        await deleteRedemption(id, childId, stars);
+        await deleteRedemption(id, childId);
         setMessage("🗑️ Đã xóa và hoàn sao!");
         await loadData();
         setLoading(null);
@@ -184,7 +184,7 @@ export default function AdminPage() {
                                             <Check size={16} /> Duyệt
                                         </button>
                                         <button
-                                            onClick={() => handleDelete(item.id, item.child_id, item.stars_spent)}
+                                            onClick={() => handleDelete(item.id, item.child_id)}
                                             disabled={loading === item.id}
                                             className="btn btn-sm"
                                             style={{ background: "#FFF0F0", color: "#c44", border: "none" }}
@@ -227,7 +227,7 @@ export default function AdminPage() {
                                             {item.status === "approved" ? "✅ Đã duyệt" : "❌ Từ chối"}
                                         </span>
                                         <button
-                                            onClick={() => handleDelete(item.id, item.child_id, item.status === "rejected" ? 0 : item.stars_spent)}
+                                            onClick={() => handleDelete(item.id, item.child_id)}
                                             disabled={loading === item.id}
                                             className="btn btn-sm"
                                             style={{ background: "transparent", color: "#c44", border: "none", padding: "0.25rem" }}
