@@ -2,10 +2,11 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { getAllRewards, createReward, updateReward } from "@/lib/actions";
+import { getAllRewards, createReward, updateReward, approveRedemption, deleteRedemption } from "@/lib/actions";
 import { NavBar } from "@/components/nav-bar";
-import { Plus, Edit2, Save, X, Star, Gift, Camera, Link, ImagePlus } from "lucide-react";
+import { Plus, Edit2, Save, X, Star, Gift, Camera, Link, ImagePlus, Check, Trash2, Clock } from "lucide-react";
 import type { Reward } from "@/types";
+import { createBrowserClient } from "@supabase/ssr";
 
 export default function AdminRewardsPage() {
     const [rewards, setRewards] = useState<Reward[]>([]);
@@ -16,15 +17,63 @@ export default function AdminRewardsPage() {
     const [imageMode, setImageMode] = useState<"upload" | "url">("upload");
     const [uploading, setUploading] = useState(false);
     const [isFreeDailyChecked, setIsFreeDailyChecked] = useState(false);
+    const [pendingRedemptions, setPendingRedemptions] = useState<any[]>([]);
+    const [historyRedemptions, setHistoryRedemptions] = useState<any[]>([]);
+    const [actionLoading, setActionLoading] = useState<string | null>(null);
+    const [actionMsg, setActionMsg] = useState("");
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
     const router = useRouter();
+
+    function getSupabase() {
+        return createBrowserClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        );
+    }
 
     useEffect(() => { loadData(); }, []);
 
     async function loadData() {
         const data = await getAllRewards();
         setRewards(data);
+
+        const supabase = getSupabase();
+        const { data: pending } = await supabase
+            .from("reward_redemptions")
+            .select("*, reward:rewards(name, image_url), child:children(name)")
+            .eq("status", "pending")
+            .order("redeemed_at", { ascending: false });
+        setPendingRedemptions(pending || []);
+
+        const { data: history } = await supabase
+            .from("reward_redemptions")
+            .select("*, reward:rewards(name, image_url), child:children(name)")
+            .gt("stars_spent", 0)
+            .neq("status", "pending")
+            .order("redeemed_at", { ascending: false })
+            .limit(20);
+        setHistoryRedemptions(history || []);
+    }
+
+    async function handleApprove(id: string) {
+        if (!confirm("Duyệt phần thưởng này?")) return;
+        setActionLoading(id);
+        await approveRedemption(id);
+        setActionMsg("✅ Đã duyệt!");
+        await loadData();
+        setActionLoading(null);
+        setTimeout(() => setActionMsg(""), 2000);
+    }
+
+    async function handleDeleteRedemption(id: string, childId: string, stars: number) {
+        if (!confirm("Xóa yêu cầu đổi thưởng? Sao sẽ được hoàn lại.")) return;
+        setActionLoading(id);
+        await deleteRedemption(id, childId, stars);
+        setActionMsg("🗑️ Đã xóa và hoàn sao!");
+        await loadData();
+        setActionLoading(null);
+        setTimeout(() => setActionMsg(""), 2000);
     }
 
     async function uploadImage(file: File): Promise<string> {
@@ -157,6 +206,100 @@ export default function AdminRewardsPage() {
                         </div>
                     ))}
                 </div>
+
+                {/* Redemption management */}
+                {actionMsg && (
+                    <div className="toast toast-success" style={{ position: "relative", right: "auto", bottom: "auto", marginBottom: "1rem" }}>
+                        {actionMsg}
+                    </div>
+                )}
+
+                {pendingRedemptions.length > 0 && (
+                    <div className="card" style={{ marginTop: "2rem" }}>
+                        <h3 style={{ fontWeight: 800, marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            <Clock size={20} color="#8a7020" />
+                            Chờ duyệt ({pendingRedemptions.length})
+                        </h3>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                            {pendingRedemptions.map((item: any) => (
+                                <div key={item.id} style={{
+                                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                                    padding: "0.75rem", background: "var(--yellow-light)",
+                                    borderRadius: "var(--radius-sm)",
+                                }}>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 700 }}>{item.child?.name} → {item.reward?.name}</div>
+                                        <div style={{ fontSize: "0.8rem", color: "var(--text-light)" }}>
+                                            {item.stars_spent} ⭐ • {new Date(item.redeemed_at).toLocaleString("vi-VN", {
+                                                day: "2-digit", month: "2-digit", year: "numeric",
+                                                hour: "2-digit", minute: "2-digit",
+                                            })}
+                                        </div>
+                                    </div>
+                                    <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+                                        <button
+                                            onClick={() => handleApprove(item.id)}
+                                            disabled={actionLoading === item.id}
+                                            className="btn btn-sm btn-mint"
+                                        >
+                                            <Check size={16} /> Duyệt
+                                        </button>
+                                        <button
+                                            onClick={() => handleDeleteRedemption(item.id, item.child_id, item.stars_spent)}
+                                            disabled={actionLoading === item.id}
+                                            className="btn btn-sm"
+                                            style={{ background: "#FFF0F0", color: "#c44", border: "none" }}
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {historyRedemptions.length > 0 && (
+                    <div className="card" style={{ marginTop: "1.5rem" }}>
+                        <h3 style={{ fontWeight: 800, marginBottom: "1rem" }}>🎊 Lịch sử đổi thưởng</h3>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                            {historyRedemptions.map((item: any) => (
+                                <div key={item.id} style={{
+                                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                                    padding: "0.6rem 0.75rem",
+                                    background: item.status === "approved" ? "#F0FFF4" : "#FFF0F0",
+                                    borderRadius: "var(--radius-sm)",
+                                }}>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>
+                                            {item.child?.name} → {item.reward?.name}
+                                        </div>
+                                        <div style={{ fontSize: "0.75rem", color: "var(--text-light)" }}>
+                                            {item.stars_spent} ⭐ • {new Date(item.redeemed_at).toLocaleString("vi-VN", {
+                                                day: "2-digit", month: "2-digit", year: "numeric",
+                                                hour: "2-digit", minute: "2-digit",
+                                            })}
+                                        </div>
+                                    </div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                        <span className={`badge badge-${item.status}`} style={{ fontSize: "0.75rem" }}>
+                                            {item.status === "approved" ? "✅ Đã duyệt" : "❌ Từ chối"}
+                                        </span>
+                                        <button
+                                            onClick={() => handleDeleteRedemption(item.id, item.child_id, item.status === "rejected" ? 0 : item.stars_spent)}
+                                            disabled={actionLoading === item.id}
+                                            className="btn btn-sm"
+                                            style={{ background: "transparent", color: "#c44", border: "none", padding: "0.25rem" }}
+                                            title="Xóa vĩnh viễn"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
 
                 {/* Form modal */}
                 {showForm && (
