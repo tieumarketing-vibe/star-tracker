@@ -23,6 +23,7 @@ export default function AdminRewardsPage() {
     const [imagePreview, setImagePreview] = useState("");
     const [imageMode, setImageMode] = useState<"upload" | "url">("upload");
     const [uploading, setUploading] = useState(false);
+    const [isFreeDailyChecked, setIsFreeDailyChecked] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
     const cameraInputRef = useRef<HTMLInputElement>(null);
     const router = useRouter();
@@ -99,6 +100,7 @@ export default function AdminRewardsPage() {
         setEditing(reward || null);
         setImagePreview(reward?.image_url || "");
         setImageMode(reward?.image_url ? "url" : "upload");
+        setIsFreeDailyChecked(reward?.is_free_daily || false);
         setShowForm(true);
     }
 
@@ -138,9 +140,17 @@ export default function AdminRewardsPage() {
                                     ? `url(${reward.image_url}) center/cover`
                                     : "linear-gradient(135deg, #FFD6DD, #D4F5E9)",
                                 display: "flex", alignItems: "center", justifyContent: "center",
-                                marginBottom: "0.75rem",
+                                marginBottom: "0.75rem", position: "relative",
                             }}>
                                 {!reward.image_url && <Gift size={40} color="#E8899A" />}
+                                {reward.is_free_daily && (
+                                    <span style={{
+                                        position: "absolute", bottom: 8, left: 8,
+                                        background: "linear-gradient(135deg, #4ECDC4, #2a7a5a)",
+                                        color: "white", padding: "0.15rem 0.5rem",
+                                        borderRadius: "100px", fontSize: "0.7rem", fontWeight: 800,
+                                    }}>🎁 FREE mỗi ngày</span>
+                                )}
                             </div>
 
                             <h3 style={{ fontWeight: 800, fontSize: "0.95rem" }}>{reward.name}</h3>
@@ -288,7 +298,7 @@ export default function AdminRewardsPage() {
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.75rem", marginBottom: "1rem" }}>
                                     <div>
                                         <label className="input-label">Giá (sao)</label>
-                                        <input name="star_cost" type="number" className="input" defaultValue={editing?.star_cost || 10} min={1} required />
+                                        <input name="star_cost" type="number" className="input" defaultValue={isFreeDailyChecked ? 0 : (editing?.star_cost || 10)} min={0} required disabled={isFreeDailyChecked} />
                                     </div>
                                     <div>
                                         <label className="input-label">Loại</label>
@@ -298,6 +308,28 @@ export default function AdminRewardsPage() {
                                             <option value="yearly">Năm</option>
                                         </select>
                                     </div>
+                                </div>
+
+                                {/* Free daily toggle */}
+                                <div style={{
+                                    marginBottom: "1rem", padding: "0.75rem",
+                                    background: isFreeDailyChecked ? "var(--mint-light)" : "#f9f9f9",
+                                    borderRadius: "var(--radius-sm)",
+                                    border: isFreeDailyChecked ? "2px solid var(--mint)" : "2px solid #eee",
+                                    transition: "all 0.2s",
+                                }}>
+                                    <label className="checkbox-cute">
+                                        <input name="is_free_daily" type="checkbox" value="true"
+                                            checked={isFreeDailyChecked}
+                                            onChange={(e) => setIsFreeDailyChecked(e.target.checked)}
+                                        />
+                                        <span style={{ fontWeight: 700 }}>🎁 Phần thưởng FREE mỗi ngày</span>
+                                    </label>
+                                    {isFreeDailyChecked && (
+                                        <p style={{ fontSize: "0.8rem", color: "var(--mint-dark)", marginTop: "0.3rem", marginLeft: "1.5rem" }}>
+                                            Bé được nhận miễn phí 1 lần/ngày, không tốn sao
+                                        </p>
+                                    )}
                                 </div>
 
                                 {editing && (

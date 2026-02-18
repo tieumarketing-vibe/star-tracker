@@ -31,24 +31,27 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
         });
     }, [params]);
 
-    const filtered = filter === "all" ? rewards : rewards.filter(r => r.tier === filter);
+    const filtered = filter === "all" ? rewards.filter(r => !r.is_free_daily) : rewards.filter(r => r.tier === filter && !r.is_free_daily);
+    const freeDaily = rewards.filter(r => r.is_free_daily);
 
     async function handleRedeem(reward: Reward) {
-        if (stars < reward.star_cost) {
+        if (!reward.is_free_daily && stars < reward.star_cost) {
             setMessage({ type: "error", text: `Không đủ sao! Cần ${reward.star_cost} ⭐` });
             return;
         }
 
-        if (!confirm(`Đổi "${reward.name}" với ${reward.star_cost} ⭐?`)) return;
+        const confirmMsg = reward.is_free_daily
+            ? `Nhận "${reward.name}" miễn phí hôm nay? 🎁`
+            : `Đổi "${reward.name}" với ${reward.star_cost} ⭐?`;
+        if (!confirm(confirmMsg)) return;
 
         setLoading(reward.id);
         const result = await redeemReward(childId, reward.id);
         setLoading(null);
 
         if (result.success) {
-            setMessage({ type: "success", text: `Đã đổi "${reward.name}" thành công! 🎉` });
-            setStars(prev => prev - reward.star_cost);
-            // Refresh redemptions
+            setMessage({ type: "success", text: reward.is_free_daily ? `Đã nhận "${reward.name}"! 🎉` : `Đã đổi "${reward.name}" thành công! 🎉` });
+            if (!reward.is_free_daily) setStars(prev => prev - reward.star_cost);
             const reds = await getRedemptions(childId);
             setRedemptions(reds);
         } else {
@@ -109,6 +112,57 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
                 {message && (
                     <div className={`toast toast-${message.type}`} style={{ position: "relative", marginBottom: "1rem", right: "auto", bottom: "auto" }}>
                         {message.text}
+                    </div>
+                )}
+
+                {/* Free daily rewards */}
+                {freeDaily.length > 0 && (
+                    <div style={{ marginBottom: "2rem" }}>
+                        <h2 style={{ fontWeight: 800, fontSize: "1.1rem", marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            🎁 Phần thưởng FREE hôm nay
+                        </h2>
+                        <div className="grid-cards">
+                            {freeDaily.map(reward => (
+                                <div key={reward.id} className="card" style={{
+                                    borderLeft: "4px solid var(--mint)",
+                                    position: "relative",
+                                }}>
+                                    <span style={{
+                                        position: "absolute", top: "0.75rem", right: "0.75rem",
+                                        background: "linear-gradient(135deg, #4ECDC4, #2a7a5a)",
+                                        color: "white", padding: "0.15rem 0.6rem",
+                                        borderRadius: "100px", fontSize: "0.7rem", fontWeight: 800,
+                                    }}>FREE</span>
+
+                                    <div style={{
+                                        width: "100%", height: 120, borderRadius: "var(--radius-sm)",
+                                        background: reward.image_url
+                                            ? `url(${reward.image_url}) center/cover`
+                                            : "linear-gradient(135deg, #D4F5E9, #B5EAD7)",
+                                        display: "flex", alignItems: "center", justifyContent: "center",
+                                        marginBottom: "0.75rem",
+                                    }}>
+                                        {!reward.image_url && <Gift size={40} color="#2a7a5a" />}
+                                    </div>
+
+                                    <h3 style={{ fontWeight: 800, fontSize: "1rem", marginBottom: "0.3rem" }}>{reward.name}</h3>
+                                    {reward.description && (
+                                        <p style={{ fontSize: "0.85rem", color: "var(--text-light)", marginBottom: "0.75rem" }}>
+                                            {reward.description}
+                                        </p>
+                                    )}
+
+                                    <button
+                                        onClick={() => handleRedeem(reward)}
+                                        disabled={loading === reward.id}
+                                        className="btn btn-mint"
+                                        style={{ width: "100%" }}
+                                    >
+                                        {loading === reward.id ? "..." : "🎁 Nhận ngay!"}
+                                    </button>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
 

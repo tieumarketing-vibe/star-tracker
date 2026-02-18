@@ -77,6 +77,7 @@ export interface Reward {
     star_cost: number;
     tier: "weekly" | "monthly" | "yearly";
     is_active: boolean;
+    is_free_daily: boolean;
     created_at: string;
 }
 

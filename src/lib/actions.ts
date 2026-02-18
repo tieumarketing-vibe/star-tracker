@@ -563,6 +563,7 @@ export async function createReward(formData: FormData) {
         image_url: formData.get("image_url") as string || "",
         star_cost: parseInt(formData.get("star_cost") as string) || 10,
         tier: formData.get("tier") as string || "weekly",
+        is_free_daily: formData.get("is_free_daily") === "true",
     });
     if (error) return { error: error.message };
     revalidatePath("/admin/rewards");
@@ -578,6 +579,7 @@ export async function updateReward(id: string, formData: FormData) {
         star_cost: parseInt(formData.get("star_cost") as string),
         tier: formData.get("tier") as string,
         is_active: formData.get("is_active") === "true",
+        is_free_daily: formData.get("is_free_daily") === "true",
     }).eq("id", id);
     if (error) return { error: error.message };
     revalidatePath("/admin/rewards");
@@ -595,30 +597,49 @@ export async function redeemReward(childId: string, rewardId: string) {
         .single();
     if (!reward) return { error: "Reward not found" };
 
-    // Check star balance
-    const stars = await getChildStarBalance(childId);
-    if (stars < reward.star_cost) {
-        return { error: `Không đủ sao! Cần ${reward.star_cost} ⭐, hiện có ${stars} ⭐` };
+    const isFree = reward.is_free_daily;
+
+    // For free daily rewards, check if already redeemed today
+    if (isFree) {
+        const today = new Date().toISOString().split("T")[0];
+        const { data: existing } = await supabase
+            .from("reward_redemptions")
+            .select("id")
+            .eq("child_id", childId)
+            .eq("reward_id", rewardId)
+            .gte("redeemed_at", today + "T00:00:00")
+            .lte("redeemed_at", today + "T23:59:59");
+        if (existing && existing.length > 0) {
+            return { error: "Hôm nay bé đã nhận phần thưởng này rồi! 🎁" };
+        }
+    } else {
+        // Check star balance for non-free rewards
+        const stars = await getChildStarBalance(childId);
+        if (stars < reward.star_cost) {
+            return { error: `Không đủ sao! Cần ${reward.star_cost} ⭐, hiện có ${stars} ⭐` };
+        }
     }
 
     // Create redemption
     const { data: redemption, error } = await supabase.from("reward_redemptions").insert({
         child_id: childId,
         reward_id: rewardId,
-        stars_spent: reward.star_cost,
-        status: "pending",
+        stars_spent: isFree ? 0 : reward.star_cost,
+        status: isFree ? "approved" : "pending",
     }).select("id").single();
 
     if (error) return { error: error.message };
 
-    // Create star transaction
-    await supabase.from("star_transactions").insert({
-        child_id: childId,
-        type: "redeem",
-        amount: -reward.star_cost,
-        description: `Đổi: ${reward.name}`,
-        reference_id: redemption?.id,
-    });
+    // Create star transaction only for non-free rewards
+    if (!isFree) {
+        await supabase.from("star_transactions").insert({
+            child_id: childId,
+            type: "redeem",
+            amount: -reward.star_cost,
+            description: `Đổi: ${reward.name}`,
+            reference_id: redemption?.id,
+        });
+    }
 
     revalidatePath(`/dashboard/${childId}`);
     revalidatePath(`/dashboard/${childId}/rewards`);
