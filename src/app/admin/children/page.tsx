@@ -6,7 +6,6 @@ import { getChildren, createChild, updateChild, deleteChild } from "@/lib/action
 import { NavBar } from "@/components/nav-bar";
 import { Plus, Edit2, Trash2, Save, X, Camera, ImagePlus } from "lucide-react";
 import type { Child } from "@/types";
-import { createBrowserClient } from "@supabase/ssr";
 
 const AVATARS = [
     "🧒", "👧", "👦", "👶", "🧒🏻", "👧🏻", "👦🏻",
@@ -27,13 +26,6 @@ export default function AdminChildrenPage() {
     const galleryRef = useRef<HTMLInputElement>(null);
     const router = useRouter();
 
-    function getSupabase() {
-        return createBrowserClient(
-            process.env.NEXT_PUBLIC_SUPABASE_URL!,
-            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-        );
-    }
-
     async function handleAvatarFile(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -43,13 +35,15 @@ export default function AdminChildrenPage() {
 
         setUploading(true);
         try {
-            const supabase = getSupabase();
-            const ext = file.name.split(".").pop() || "jpg";
-            const fileName = `avatar_${Date.now()}.${ext}`;
-            const { error } = await supabase.storage.from("avatars").upload(fileName, file, { upsert: true });
-            if (!error) {
-                const { data } = supabase.storage.from("avatars").getPublicUrl(fileName);
-                setSelectedAvatar(data.publicUrl);
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("bucket", "avatars");
+            const res = await fetch("/api/upload", { method: "POST", body: fd });
+            const data = await res.json();
+            if (data.url) {
+                setSelectedAvatar(data.url);
+            } else {
+                console.error("Upload error:", data.error);
             }
         } catch (err) { console.error(err); }
         setUploading(false);

@@ -6,14 +6,6 @@ import { getAllRewards, createReward, updateReward } from "@/lib/actions";
 import { NavBar } from "@/components/nav-bar";
 import { Plus, Edit2, Save, X, Star, Gift, Camera, Link, ImagePlus } from "lucide-react";
 import type { Reward } from "@/types";
-import { createBrowserClient } from "@supabase/ssr";
-
-function getSupabase() {
-    return createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    );
-}
 
 export default function AdminRewardsPage() {
     const [rewards, setRewards] = useState<Reward[]>([]);
@@ -38,20 +30,13 @@ export default function AdminRewardsPage() {
     async function uploadImage(file: File): Promise<string> {
         setUploading(true);
         try {
-            const supabase = getSupabase();
-            const ext = file.name.split(".").pop() || "jpg";
-            const fileName = `reward_${Date.now()}.${ext}`;
-            const { error } = await supabase.storage
-                .from("rewards")
-                .upload(fileName, file, { upsert: true });
-
-            if (error) throw error;
-
-            const { data: urlData } = supabase.storage
-                .from("rewards")
-                .getPublicUrl(fileName);
-
-            return urlData.publicUrl;
+            const fd = new FormData();
+            fd.append("file", file);
+            fd.append("bucket", "rewards");
+            const res = await fetch("/api/upload", { method: "POST", body: fd });
+            const data = await res.json();
+            if (data.url) return data.url;
+            throw new Error(data.error || "Upload failed");
         } finally {
             setUploading(false);
         }
