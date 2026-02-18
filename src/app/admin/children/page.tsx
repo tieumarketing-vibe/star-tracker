@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { getChildren, createChild, updateChild, deleteChild } from "@/lib/actions";
 import { NavBar } from "@/components/nav-bar";
-import { Plus, Edit2, Trash2, Save, X } from "lucide-react";
+import { Plus, Edit2, Trash2, Save, X, Camera, ImagePlus } from "lucide-react";
 import type { Child } from "@/types";
+import { createBrowserClient } from "@supabase/ssr";
 
 const AVATARS = [
     "🧒", "👧", "👦", "👶", "🧒🏻", "👧🏻", "👦🏻",
@@ -20,7 +21,39 @@ export default function AdminChildrenPage() {
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState("");
     const [selectedAvatar, setSelectedAvatar] = useState("");
+    const [avatarMode, setAvatarMode] = useState<"emoji" | "photo">("emoji");
+    const [uploading, setUploading] = useState(false);
+    const cameraRef = useRef<HTMLInputElement>(null);
+    const galleryRef = useRef<HTMLInputElement>(null);
     const router = useRouter();
+
+    function getSupabase() {
+        return createBrowserClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        );
+    }
+
+    async function handleAvatarFile(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => setSelectedAvatar(ev.target?.result as string);
+        reader.readAsDataURL(file);
+
+        setUploading(true);
+        try {
+            const supabase = getSupabase();
+            const ext = file.name.split(".").pop() || "jpg";
+            const fileName = `avatar_${Date.now()}.${ext}`;
+            const { error } = await supabase.storage.from("avatars").upload(fileName, file, { upsert: true });
+            if (!error) {
+                const { data } = supabase.storage.from("avatars").getPublicUrl(fileName);
+                setSelectedAvatar(data.publicUrl);
+            }
+        } catch (err) { console.error(err); }
+        setUploading(false);
+    }
 
     useEffect(() => {
         loadChildren();
@@ -64,6 +97,7 @@ export default function AdminChildrenPage() {
     function openEdit(child: Child) {
         setEditing(child);
         setSelectedAvatar(child.avatar_url || "");
+        setAvatarMode(child.avatar_url?.startsWith("http") ? "photo" : "emoji");
         setShowForm(true);
     }
 
@@ -87,10 +121,13 @@ export default function AdminChildrenPage() {
                         <div key={child.id} className="card" style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
                             <div className="avatar" style={{
                                 width: 60, height: 60, fontSize: "2rem",
-                                background: ["#FFB5C240", "#B5EAD740", "#A0D2DB40"][idx % 3],
+                                background: child.avatar_url?.startsWith("http")
+                                    ? `url(${child.avatar_url}) center/cover`
+                                    : ["#FFB5C240", "#B5EAD740", "#A0D2DB40"][idx % 3],
+                                backgroundSize: "cover",
                                 flexShrink: 0,
                             }}>
-                                {child.avatar_url || AVATARS[idx % AVATARS.length]}
+                                {!child.avatar_url?.startsWith("http") && (child.avatar_url || AVATARS[idx % AVATARS.length])}
                             </div>
                             <div style={{ flex: 1 }}>
                                 <h3 style={{ fontWeight: 800 }}>{child.name}</h3>
@@ -131,33 +168,91 @@ export default function AdminChildrenPage() {
 
                                 <div style={{ marginBottom: "1rem" }}>
                                     <label className="input-label">Avatar</label>
+
+                                    {/* Mode toggle */}
+                                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "0.75rem" }}>
+                                        <button type="button" onClick={() => setAvatarMode("emoji")} style={{
+                                            padding: "0.5rem", borderRadius: "var(--radius-sm)",
+                                            border: avatarMode === "emoji" ? "2.5px solid var(--mint-dark)" : "2px solid #eee",
+                                            background: avatarMode === "emoji" ? "var(--mint-light)" : "white",
+                                            cursor: "pointer", fontFamily: "Nunito", fontWeight: 700, fontSize: "0.8rem",
+                                            color: avatarMode === "emoji" ? "var(--mint-dark)" : "var(--text-light)",
+                                            transition: "all 0.2s",
+                                        }}>😊 Emoji</button>
+                                        <button type="button" onClick={() => setAvatarMode("photo")} style={{
+                                            padding: "0.5rem", borderRadius: "var(--radius-sm)",
+                                            border: avatarMode === "photo" ? "2.5px solid var(--sky-dark)" : "2px solid #eee",
+                                            background: avatarMode === "photo" ? "var(--sky-light)" : "white",
+                                            cursor: "pointer", fontFamily: "Nunito", fontWeight: 700, fontSize: "0.8rem",
+                                            color: avatarMode === "photo" ? "var(--sky-dark)" : "var(--text-light)",
+                                            display: "flex", alignItems: "center", justifyContent: "center", gap: "0.3rem",
+                                            transition: "all 0.2s",
+                                        }}><Camera size={14} /> Ảnh chụp</button>
+                                    </div>
+
                                     {/* Preview */}
                                     <div style={{ textAlign: "center", marginBottom: "0.75rem" }}>
                                         <div style={{
-                                            width: 64, height: 64, borderRadius: "50%",
-                                            background: "linear-gradient(135deg, #FFB5C240, #B5EAD740)",
+                                            width: 72, height: 72, borderRadius: "50%",
+                                            background: selectedAvatar?.startsWith("http") || selectedAvatar?.startsWith("data:")
+                                                ? `url(${selectedAvatar}) center/cover`
+                                                : "linear-gradient(135deg, #FFB5C240, #B5EAD740)",
+                                            backgroundSize: "cover",
                                             display: "inline-flex", alignItems: "center", justifyContent: "center",
                                             fontSize: "2.2rem", border: "3px solid var(--mint)",
+                                            overflow: "hidden",
                                         }}>
-                                            {selectedAvatar || "❓"}
+                                            {!selectedAvatar?.startsWith("http") && !selectedAvatar?.startsWith("data:") && (selectedAvatar || "❓")}
                                         </div>
                                     </div>
-                                    {/* Emoji grid */}
-                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", justifyContent: "center" }}>
-                                        {AVATARS.map(a => (
-                                            <button key={a} type="button" style={{
-                                                fontSize: "1.4rem", padding: "0.35rem",
-                                                background: selectedAvatar === a ? "var(--mint-light)" : "white",
-                                                border: selectedAvatar === a ? "2.5px solid var(--mint-dark)" : "2px solid #eee",
-                                                borderRadius: "10px", cursor: "pointer",
-                                                transition: "all 0.15s",
-                                                transform: selectedAvatar === a ? "scale(1.15)" : "scale(1)",
-                                            }}
-                                                onClick={() => setSelectedAvatar(a)}
-                                            >{a}</button>
-                                        ))}
-                                    </div>
-                                    <input type="hidden" name="avatar_url" value={selectedAvatar} />
+
+                                    {avatarMode === "emoji" ? (
+                                        <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", justifyContent: "center" }}>
+                                            {AVATARS.map(a => (
+                                                <button key={a} type="button" style={{
+                                                    fontSize: "1.4rem", padding: "0.35rem",
+                                                    background: selectedAvatar === a ? "var(--mint-light)" : "white",
+                                                    border: selectedAvatar === a ? "2.5px solid var(--mint-dark)" : "2px solid #eee",
+                                                    borderRadius: "10px", cursor: "pointer",
+                                                    transition: "all 0.15s",
+                                                    transform: selectedAvatar === a ? "scale(1.15)" : "scale(1)",
+                                                }}
+                                                    onClick={() => setSelectedAvatar(a)}
+                                                >{a}</button>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleAvatarFile} style={{ display: "none" }} />
+                                            <input ref={galleryRef} type="file" accept="image/*" onChange={handleAvatarFile} style={{ display: "none" }} />
+                                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem" }}>
+                                                <button type="button" onClick={() => cameraRef.current?.click()} style={{
+                                                    padding: "0.75rem", border: "2px dashed var(--sky)",
+                                                    borderRadius: "var(--radius-sm)", background: "var(--sky-light)",
+                                                    cursor: "pointer", display: "flex", flexDirection: "column",
+                                                    alignItems: "center", gap: "0.3rem", fontFamily: "Nunito",
+                                                    fontWeight: 700, fontSize: "0.8rem", color: "var(--sky-dark)",
+                                                }}>
+                                                    <Camera size={22} /> Chụp ảnh
+                                                </button>
+                                                <button type="button" onClick={() => galleryRef.current?.click()} style={{
+                                                    padding: "0.75rem", border: "2px dashed var(--mint)",
+                                                    borderRadius: "var(--radius-sm)", background: "var(--mint-light)",
+                                                    cursor: "pointer", display: "flex", flexDirection: "column",
+                                                    alignItems: "center", gap: "0.3rem", fontFamily: "Nunito",
+                                                    fontWeight: 700, fontSize: "0.8rem", color: "var(--mint-dark)",
+                                                }}>
+                                                    <ImagePlus size={22} /> Thư viện
+                                                </button>
+                                            </div>
+                                            {uploading && (
+                                                <div style={{ textAlign: "center", padding: "0.5rem", color: "var(--text-muted)", fontSize: "0.85rem" }}>
+                                                    ⏳ Đang upload...
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                    <input type="hidden" name="avatar_url" value={selectedAvatar?.startsWith("data:") ? "" : selectedAvatar} />
                                 </div>
 
                                 <div style={{ marginBottom: "1rem" }}>
