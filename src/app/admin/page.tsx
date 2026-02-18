@@ -1,24 +1,75 @@
-import { redirect } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
-import { getChildren, getChildStarBalance, getAllRewards } from "@/lib/actions";
+"use client";
+
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { NavBar } from "@/components/nav-bar";
-import { Users, ListChecks, AlertTriangle, Gift, ChevronRight } from "lucide-react";
+import { Users, ListChecks, AlertTriangle, Gift, ChevronRight, Check, Trash2, Clock } from "lucide-react";
+import { getChildren, getAllRewards, approveRedemption, deleteRedemption } from "@/lib/actions";
+import { createBrowserClient } from "@supabase/ssr";
 
-export default async function AdminPage() {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) redirect("/login");
+export default function AdminPage() {
+    const [children, setChildren] = useState<any[]>([]);
+    const [rewards, setRewards] = useState<any[]>([]);
+    const [pendingRedemptions, setPendingRedemptions] = useState<any[]>([]);
+    const [allRedemptions, setAllRedemptions] = useState<any[]>([]);
+    const [loading, setLoading] = useState<string | null>(null);
+    const [message, setMessage] = useState("");
+    const router = useRouter();
 
-    const children = await getChildren();
-    const rewards = await getAllRewards();
+    function getSupabase() {
+        return createBrowserClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        );
+    }
 
-    // Get pending redemptions
-    const { data: pendingRedemptions } = await supabase
-        .from("reward_redemptions")
-        .select("*, reward:rewards(*), child:children(name)")
-        .eq("status", "pending")
-        .order("redeemed_at", { ascending: false });
+    useEffect(() => { loadData(); }, []);
+
+    async function loadData() {
+        const [ch, rw] = await Promise.all([getChildren(), getAllRewards()]);
+        setChildren(ch);
+        setRewards(rw);
+
+        const supabase = getSupabase();
+        // Pending
+        const { data: pending } = await supabase
+            .from("reward_redemptions")
+            .select("*, reward:rewards(*), child:children(name)")
+            .eq("status", "pending")
+            .order("redeemed_at", { ascending: false });
+        setPendingRedemptions(pending || []);
+
+        // All non-free history
+        const { data: all } = await supabase
+            .from("reward_redemptions")
+            .select("*, reward:rewards(*), child:children(name)")
+            .gt("stars_spent", 0)
+            .neq("status", "pending")
+            .order("redeemed_at", { ascending: false })
+            .limit(30);
+        setAllRedemptions(all || []);
+    }
+
+    async function handleApprove(id: string) {
+        if (!confirm("Duyệt phần thưởng này?")) return;
+        setLoading(id);
+        await approveRedemption(id);
+        setMessage("✅ Đã duyệt!");
+        await loadData();
+        setLoading(null);
+        setTimeout(() => setMessage(""), 2000);
+    }
+
+    async function handleDelete(id: string, childId: string, stars: number) {
+        if (!confirm("Xóa yêu cầu đổi thưởng? Sao sẽ được hoàn lại.")) return;
+        setLoading(id);
+        await deleteRedemption(id, childId, stars);
+        setMessage("🗑️ Đã xóa và hoàn sao!");
+        await loadData();
+        setLoading(null);
+        setTimeout(() => setMessage(""), 2000);
+    }
 
     const adminLinks = [
         { href: "/admin/children", icon: <Users size={28} />, label: "Quản lý bé", desc: `${children.length} bé`, color: "#FFB5C2" },
@@ -34,6 +85,12 @@ export default async function AdminPage() {
                 <h1 className="page-title">⚙️ Quản trị</h1>
                 <p className="page-subtitle">Quản lý hoạt động, hình phạt, vật phẩm và bé</p>
 
+                {message && (
+                    <div className="toast toast-success" style={{ position: "relative", right: "auto", bottom: "auto", marginBottom: "1rem" }}>
+                        {message}
+                    </div>
+                )}
+
                 {/* Admin cards */}
                 <div className="grid-cards" style={{ marginBottom: "2rem" }}>
                     {adminLinks.map(link => (
@@ -43,8 +100,7 @@ export default async function AdminPage() {
                                     width: 56, height: 56, borderRadius: "var(--radius-sm)",
                                     background: link.color + "40",
                                     display: "flex", alignItems: "center", justifyContent: "center",
-                                    color: link.color,
-                                    flexShrink: 0,
+                                    color: link.color, flexShrink: 0,
                                 }}>
                                     {link.icon}
                                 </div>
@@ -59,44 +115,96 @@ export default async function AdminPage() {
                 </div>
 
                 {/* Pending redemptions */}
-                {pendingRedemptions && pendingRedemptions.length > 0 && (
-                    <div className="card">
-                        <h3 style={{ fontWeight: 800, marginBottom: "1rem" }}>
-                            🎁 Yêu cầu đổi thưởng ({pendingRedemptions.length} đang chờ)
+                {pendingRedemptions.length > 0 && (
+                    <div className="card" style={{ marginBottom: "2rem" }}>
+                        <h3 style={{ fontWeight: 800, marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            <Clock size={20} color="#8a7020" />
+                            Yêu cầu đổi thưởng ({pendingRedemptions.length} đang chờ)
                         </h3>
-                        <PendingRedemptions items={pendingRedemptions} />
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                            {pendingRedemptions.map((item: any) => (
+                                <div key={item.id} style={{
+                                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                                    padding: "0.75rem", background: "var(--yellow-light)",
+                                    borderRadius: "var(--radius-sm)",
+                                }}>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 700 }}>{item.child?.name} → {item.reward?.name}</div>
+                                        <div style={{ fontSize: "0.8rem", color: "var(--text-light)" }}>
+                                            {item.stars_spent} ⭐ • {new Date(item.redeemed_at).toLocaleString("vi-VN", {
+                                                day: "2-digit", month: "2-digit", year: "numeric",
+                                                hour: "2-digit", minute: "2-digit",
+                                            })}
+                                        </div>
+                                    </div>
+                                    <div style={{ display: "flex", gap: "0.5rem", flexShrink: 0 }}>
+                                        <button
+                                            onClick={() => handleApprove(item.id)}
+                                            disabled={loading === item.id}
+                                            className="btn btn-sm btn-mint"
+                                            title="Duyệt"
+                                        >
+                                            <Check size={16} /> Duyệt
+                                        </button>
+                                        <button
+                                            onClick={() => handleDelete(item.id, item.child_id, item.stars_spent)}
+                                            disabled={loading === item.id}
+                                            className="btn btn-sm"
+                                            style={{ background: "#FFF0F0", color: "#c44", border: "none" }}
+                                            title="Xóa"
+                                        >
+                                            <Trash2 size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                {/* Redemption history */}
+                {allRedemptions.length > 0 && (
+                    <div className="card">
+                        <h3 style={{ fontWeight: 800, marginBottom: "1rem" }}>🎊 Lịch sử đổi thưởng</h3>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                            {allRedemptions.map((item: any) => (
+                                <div key={item.id} style={{
+                                    display: "flex", justifyContent: "space-between", alignItems: "center",
+                                    padding: "0.6rem 0.75rem",
+                                    background: item.status === "approved" ? "#F0FFF4" : "#FFF0F0",
+                                    borderRadius: "var(--radius-sm)",
+                                }}>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>
+                                            {item.child?.name} → {item.reward?.name}
+                                        </div>
+                                        <div style={{ fontSize: "0.75rem", color: "var(--text-light)" }}>
+                                            {item.stars_spent} ⭐ • {new Date(item.redeemed_at).toLocaleString("vi-VN", {
+                                                day: "2-digit", month: "2-digit", year: "numeric",
+                                                hour: "2-digit", minute: "2-digit",
+                                            })}
+                                        </div>
+                                    </div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                                        <span className={`badge badge-${item.status}`} style={{ fontSize: "0.75rem" }}>
+                                            {item.status === "approved" ? "✅ Đã duyệt" : "❌ Từ chối"}
+                                        </span>
+                                        <button
+                                            onClick={() => handleDelete(item.id, item.child_id, item.status === "rejected" ? 0 : item.stars_spent)}
+                                            disabled={loading === item.id}
+                                            className="btn btn-sm"
+                                            style={{ background: "transparent", color: "#c44", border: "none", padding: "0.25rem" }}
+                                            title="Xóa vĩnh viễn"
+                                        >
+                                            <Trash2 size={14} />
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>
         </>
-    );
-}
-
-function PendingRedemptions({ items }: { items: any[] }) {
-    return (
-        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
-            {items.map((item: any) => (
-                <div key={item.id} style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    padding: "0.75rem",
-                    background: "var(--yellow-light)",
-                    borderRadius: "var(--radius-sm)",
-                }}>
-                    <div>
-                        <div style={{ fontWeight: 700 }}>{item.child?.name} → {item.reward?.name}</div>
-                        <div style={{ fontSize: "0.8rem", color: "var(--text-light)" }}>
-                            {item.stars_spent} ⭐ • {new Date(item.redeemed_at).toLocaleDateString("vi-VN")}
-                        </div>
-                    </div>
-                    <div style={{ display: "flex", gap: "0.5rem" }}>
-                        <form action={`/api/approve-redemption?id=${item.id}`} method="POST">
-                            <span className="badge badge-pending">Chờ duyệt</span>
-                        </form>
-                    </div>
-                </div>
-            ))}
-        </div>
     );
 }

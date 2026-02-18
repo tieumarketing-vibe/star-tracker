@@ -35,6 +35,7 @@ export default function EvaluatePage({ params }: { params: Promise<{ childId: st
     const [loading, setLoading] = useState(false);
     const [result, setResult] = useState<{ success?: boolean; earned?: number; deducted?: number; error?: string } | null>(null);
     const [alreadyEvaluated, setAlreadyEvaluated] = useState(false);
+    const [lastUpdated, setLastUpdated] = useState<string>("");
     const router = useRouter();
 
     useEffect(() => {
@@ -57,6 +58,7 @@ export default function EvaluatePage({ params }: { params: Promise<{ childId: st
                 const existingPenalties = today.evaluation_penalties?.map((p: any) => p.penalty_type_id) || [];
                 setSelectedPenalties(existingPenalties);
                 setNotes(today.notes || "");
+                setLastUpdated(today.updated_at || today.created_at || "");
             }
         });
     }, [params]);
@@ -135,6 +137,14 @@ export default function EvaluatePage({ params }: { params: Promise<{ childId: st
                         fontSize: "0.9rem",
                     }}>
                         ⚠️ Đã có đánh giá hôm nay. Cập nhật sẽ ghi đè đánh giá cũ.
+                        {lastUpdated && (
+                            <div style={{ marginTop: "0.3rem", fontSize: "0.8rem", fontWeight: 700, color: "#6b5a10" }}>
+                                🕐 Lần cập nhật gần nhất: {new Date(lastUpdated).toLocaleString("vi-VN", {
+                                    day: "2-digit", month: "2-digit", year: "numeric",
+                                    hour: "2-digit", minute: "2-digit", second: "2-digit",
+                                })}
+                            </div>
+                        )}
                     </div>
                 )}
 

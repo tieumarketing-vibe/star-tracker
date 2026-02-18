@@ -689,6 +689,37 @@ export async function rejectRedemption(redemptionId: string, childId: string, st
     return { success: true };
 }
 
+export async function deleteRedemption(redemptionId: string, childId: string, starsToRefund: number) {
+    const supabase = await createClient();
+
+    // Delete related star transactions first
+    await supabase.from("star_transactions")
+        .delete()
+        .eq("reference_id", redemptionId);
+
+    // Delete the redemption
+    const { error } = await supabase
+        .from("reward_redemptions")
+        .delete()
+        .eq("id", redemptionId);
+    if (error) return { error: error.message };
+
+    // Refund stars if non-free
+    if (starsToRefund > 0) {
+        await supabase.from("star_transactions").insert({
+            child_id: childId,
+            type: "earn",
+            amount: starsToRefund,
+            description: "Hoàn sao do xóa yêu cầu đổi thưởng",
+        });
+    }
+
+    revalidatePath("/admin");
+    revalidatePath(`/dashboard/${childId}`);
+    revalidatePath(`/dashboard/${childId}/rewards`);
+    return { success: true };
+}
+
 // ============================================
 // STAR TRANSACTIONS
 // ============================================
