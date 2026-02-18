@@ -82,6 +82,11 @@ export default function AdminRewardsPage() {
             formData.set("image_url", imagePreview);
         }
 
+        // Force star_cost to 0 for free daily rewards
+        if (isFreeDailyChecked) {
+            formData.set("star_cost", "0");
+        }
+
         if (editing) {
             await updateReward(editing.id, formData);
         } else {
@@ -130,7 +135,7 @@ export default function AdminRewardsPage() {
                             {!reward.is_active && (
                                 <span className="badge badge-penalty" style={{ position: "absolute", top: "0.75rem", left: "0.75rem" }}>Tắt</span>
                             )}
-                            <span className={`badge badge-${reward.tier}`} style={{ position: "absolute", top: "0.75rem", right: "0.75rem" }}>
+                            <span className={`badge badge-${reward.tier}`} style={{ position: "absolute", top: "0.75rem", right: "0.75rem", zIndex: 2 }}>
                                 {tierLabels[reward.tier]}
                             </span>
 
@@ -157,8 +162,8 @@ export default function AdminRewardsPage() {
                             <p style={{ fontSize: "0.8rem", color: "var(--text-light)", marginBottom: "0.5rem" }}>{reward.description}</p>
 
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontWeight: 800, color: "#8a7020" }}>
-                                    <Star size={16} fill="#FFE66D" color="#E8C94A" /> {reward.star_cost}
+                                <div style={{ display: "flex", alignItems: "center", gap: "0.3rem", fontWeight: 800, color: reward.is_free_daily ? "#2a7a5a" : "#8a7020" }}>
+                                    {reward.is_free_daily ? "🎁 FREE" : <><Star size={16} fill="#FFE66D" color="#E8C94A" /> {reward.star_cost}</>}
                                 </div>
                                 <button onClick={() => openForm(reward)} className="btn btn-sm btn-sky">
                                     <Edit2 size={14} />

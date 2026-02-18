@@ -178,7 +178,7 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
                                 position: "relative",
                             }}>
                                 {/* Tier badge */}
-                                <span className={`badge badge-${reward.tier}`} style={{ position: "absolute", top: "1rem", right: "1rem" }}>
+                                <span className={`badge badge-${reward.tier}`} style={{ position: "absolute", top: "1rem", right: "1rem", zIndex: 2 }}>
                                     {tierLabels[reward.tier]}
                                 </span>
 
