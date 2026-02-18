@@ -3,7 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { getChild, getChildStarBalance, getEvaluationHistory, getStarTransactions, getRedemptions } from "@/lib/actions";
 import Link from "next/link";
 import { NavBar } from "@/components/nav-bar";
-import { Star, ClipboardList, Award, TrendingUp, TrendingDown, Calendar, ArrowRight } from "lucide-react";
+import { StarCounter } from "@/components/star-rain";
+import { ClipboardList, Award, TrendingUp, TrendingDown, Calendar, ArrowRight } from "lucide-react";
 
 export default async function ChildDashboard({ params }: { params: Promise<{ childId: string }> }) {
     const { childId } = await params;
@@ -44,20 +45,8 @@ export default async function ChildDashboard({ params }: { params: Promise<{ chi
                     </div>
                     <h1 className="page-title" style={{ marginTop: "0.5rem" }}>{child.name}</h1>
 
-                    {/* Big star counter */}
-                    <div className="animate-pulse-glow" style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: "0.5rem",
-                        background: "linear-gradient(135deg, #FFF0A3, #FFE66D)",
-                        padding: "0.75rem 2rem",
-                        borderRadius: "100px",
-                        marginTop: "0.5rem",
-                    }}>
-                        <Star size={28} fill="#E8C94A" color="#E8C94A" />
-                        <span style={{ fontWeight: 900, fontSize: "2rem", color: "#8a7020" }}>{stars}</span>
-                        <span style={{ fontSize: "1rem", color: "#8a7020", fontWeight: 700 }}>sao</span>
-                    </div>
+                    {/* Big star counter - click for star rain! */}
+                    <StarCounter stars={stars} />
                 </div>
 
                 {/* Quick stats */}

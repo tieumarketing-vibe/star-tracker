@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { getActivityTypes, getPenaltyTypes, submitEvaluation, getTodayEvaluation } from "@/lib/actions";
 import { NavBar } from "@/components/nav-bar";
+import { StarRain } from "@/components/star-rain";
 import { Star, Send, AlertTriangle, CheckCircle } from "lucide-react";
 import type { ActivityType, PenaltyType, EvaluationFormData } from "@/types";
 
@@ -36,6 +37,7 @@ export default function EvaluatePage({ params }: { params: Promise<{ childId: st
     const [result, setResult] = useState<{ success?: boolean; earned?: number; deducted?: number; error?: string } | null>(null);
     const [alreadyEvaluated, setAlreadyEvaluated] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<string>("");
+    const [starRainTrigger, setStarRainTrigger] = useState(0);
     const router = useRouter();
 
     useEffect(() => {
@@ -90,10 +92,11 @@ export default function EvaluatePage({ params }: { params: Promise<{ childId: st
         setLoading(false);
 
         if (res.success) {
+            setStarRainTrigger(prev => prev + 1);
             setTimeout(() => {
                 router.push(`/dashboard/${childId}`);
                 router.refresh();
-            }, 2000);
+            }, 3000);
         }
     }
 
@@ -125,6 +128,8 @@ export default function EvaluatePage({ params }: { params: Promise<{ childId: st
                 <p className="page-subtitle">
                     {new Date().toLocaleDateString("vi-VN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}
                 </p>
+
+                <StarRain trigger={starRainTrigger} count={40} withSound={true} />
 
                 {alreadyEvaluated && (
                     <div style={{
