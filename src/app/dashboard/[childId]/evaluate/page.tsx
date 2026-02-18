@@ -290,7 +290,7 @@ export default function EvaluatePage({ params }: { params: Promise<{ childId: st
                             <>
                                 <CheckCircle size={20} />
                                 Đánh giá thành công! +{result.earned} ⭐
-                                {result.deducted ? ` / -{result.deducted} ⭐` : ""}
+                                {result.deducted ? ` / -${result.deducted} ⭐` : ""}
                                 {" "}— Đang chuyển hướng...
                             </>
                         ) : result.error}
