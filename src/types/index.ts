@@ -32,6 +32,7 @@ export interface PenaltyType {
     id: string;
     name: string;
     description: string;
+    type: "penalty" | "bonus";
     star_deduction: number;
     icon: string;
     is_active: boolean;

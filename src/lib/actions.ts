@@ -288,11 +288,13 @@ export async function getAllPenaltyTypes() {
 
 export async function createPenaltyType(formData: FormData) {
     const supabase = await createClient();
+    const type = formData.get("type") as string || "penalty";
     const { error } = await supabase.from("penalty_types").insert({
         name: formData.get("name") as string,
         description: formData.get("description") as string || "",
+        type,
         star_deduction: parseInt(formData.get("star_deduction") as string) || 1,
-        icon: formData.get("icon") as string || "⚠️",
+        icon: formData.get("icon") as string || (type === "bonus" ? "🌟" : "⚠️"),
     });
     if (error) return { error: error.message };
     revalidatePath("/admin/penalties");
@@ -304,6 +306,7 @@ export async function updatePenaltyType(id: string, formData: FormData) {
     const { error } = await supabase.from("penalty_types").update({
         name: formData.get("name") as string,
         description: formData.get("description") as string,
+        type: formData.get("type") as string || "penalty",
         star_deduction: parseInt(formData.get("star_deduction") as string),
         icon: formData.get("icon") as string,
         is_active: formData.get("is_active") === "true",
@@ -344,9 +347,13 @@ export async function submitEvaluation(childId: string, data: EvaluationFormData
 
     const penaltyDetails = data.penalties.map(pid => {
         const penalty = penaltyMap.get(pid);
-        const deduction = penalty?.star_deduction || 1;
-        totalDeducted += deduction;
-        return { penalty_type_id: pid, stars_deducted: deduction };
+        const value = penalty?.star_deduction || 1;
+        if (penalty?.type === "bonus") {
+            totalEarned += value;
+        } else {
+            totalDeducted += value;
+        }
+        return { penalty_type_id: pid, stars_deducted: penalty?.type === "bonus" ? -value : value };
     });
 
     // Check if evaluation exists for today

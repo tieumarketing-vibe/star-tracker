@@ -43,11 +43,12 @@ CREATE TABLE public.activity_types (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Penalty Types
+-- Penalty & Bonus Types
 CREATE TABLE public.penalty_types (
   id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   name TEXT NOT NULL,
   description TEXT DEFAULT '',
+  type TEXT NOT NULL DEFAULT 'penalty' CHECK (type IN ('penalty', 'bonus')),
   star_deduction INT NOT NULL DEFAULT 1,
   icon TEXT NOT NULL DEFAULT '⚠️',
   is_active BOOLEAN NOT NULL DEFAULT true,

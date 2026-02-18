@@ -105,7 +105,12 @@ export default function EvaluatePage({ params }: { params: Promise<{ childId: st
 
     const previewDeducted = selectedPenalties.reduce((sum, pid) => {
         const pen = penalties.find(p => p.id === pid);
-        return sum + (pen?.star_deduction || 0);
+        return pen?.type === "bonus" ? sum : sum + (pen?.star_deduction || 0);
+    }, 0);
+
+    const previewBonus = selectedPenalties.reduce((sum, pid) => {
+        const pen = penalties.find(p => p.id === pid);
+        return pen?.type === "bonus" ? sum + (pen?.star_deduction || 0) : sum;
     }, 0);
 
     return (
@@ -165,13 +170,44 @@ export default function EvaluatePage({ params }: { params: Promise<{ childId: st
                     ))}
                 </div>
 
+                {/* Bonus items */}
+                {penalties.filter(p => p.type === "bonus").length > 0 && (
+                    <div className="card" style={{ marginBottom: "1rem", borderLeft: "4px solid var(--mint)" }}>
+                        <h3 style={{ fontWeight: 800, marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem", color: "var(--mint-dark)" }}>
+                            🌟 Thưởng thêm (nếu có)
+                        </h3>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
+                            {penalties.filter(p => p.type === "bonus").map(bon => (
+                                <label key={bon.id} className="checkbox-cute" style={{
+                                    background: selectedPenalties.includes(bon.id) ? "var(--mint-light)" : "transparent",
+                                    borderRadius: "var(--radius-sm)",
+                                }}>
+                                    <input
+                                        type="checkbox"
+                                        checked={selectedPenalties.includes(bon.id)}
+                                        onChange={() => togglePenalty(bon.id)}
+                                    />
+                                    <span style={{ fontSize: "1.2rem" }}>{bon.icon}</span>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 700, fontSize: "0.9rem" }}>{bon.name}</div>
+                                        {bon.description && (
+                                            <div style={{ fontSize: "0.8rem", color: "var(--text-light)" }}>{bon.description}</div>
+                                        )}
+                                    </div>
+                                    <span style={{ color: "var(--mint-dark)", fontWeight: 800, fontSize: "0.85rem" }}>+{bon.star_deduction} ⭐</span>
+                                </label>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
                 {/* Penalties */}
-                <div className="card" style={{ marginBottom: "1.5rem" }}>
+                <div className="card" style={{ marginBottom: "1.5rem", borderLeft: "4px solid #FF8A8A" }}>
                     <h3 style={{ fontWeight: 800, marginBottom: "1rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
                         <AlertTriangle size={20} color="#c44" /> Vi phạm (nếu có)
                     </h3>
                     <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem" }}>
-                        {penalties.map(pen => (
+                        {penalties.filter(p => p.type !== "bonus").map(pen => (
                             <label key={pen.id} className="checkbox-cute" style={{
                                 background: selectedPenalties.includes(pen.id) ? "#FFE0E0" : "transparent",
                                 borderRadius: "var(--radius-sm)",
@@ -213,11 +249,17 @@ export default function EvaluatePage({ params }: { params: Promise<{ childId: st
                     marginBottom: "1.5rem",
                 }}>
                     <h3 style={{ fontWeight: 800, marginBottom: "0.5rem" }}>📊 Tổng kết</h3>
-                    <div style={{ display: "flex", gap: "2rem", alignItems: "center" }}>
+                    <div style={{ display: "flex", gap: "2rem", alignItems: "center", flexWrap: "wrap" }}>
                         <div>
                             <span style={{ color: "#2a7a5a", fontWeight: 800, fontSize: "1.3rem" }}>+{previewEarned}</span>
-                            <span style={{ fontSize: "0.85rem", color: "var(--text-light)", marginLeft: "0.3rem" }}>sao kiếm được</span>
+                            <span style={{ fontSize: "0.85rem", color: "var(--text-light)", marginLeft: "0.3rem" }}>sao hoạt động</span>
                         </div>
+                        {previewBonus > 0 && (
+                            <div>
+                                <span style={{ color: "var(--mint-dark)", fontWeight: 800, fontSize: "1.3rem" }}>+{previewBonus}</span>
+                                <span style={{ fontSize: "0.85rem", color: "var(--text-light)", marginLeft: "0.3rem" }}>sao thưởng</span>
+                            </div>
+                        )}
                         {previewDeducted > 0 && (
                             <div>
                                 <span style={{ color: "#c44", fontWeight: 800, fontSize: "1.3rem" }}>-{previewDeducted}</span>
@@ -225,7 +267,7 @@ export default function EvaluatePage({ params }: { params: Promise<{ childId: st
                             </div>
                         )}
                         <div>
-                            <span style={{ color: "#8a7020", fontWeight: 800, fontSize: "1.3rem" }}>= {previewEarned - previewDeducted}</span>
+                            <span style={{ color: "#8a7020", fontWeight: 800, fontSize: "1.3rem" }}>= {previewEarned + previewBonus - previewDeducted}</span>
                             <span style={{ fontSize: "0.85rem", color: "var(--text-light)", marginLeft: "0.3rem" }}>sao ròng</span>
                         </div>
                     </div>

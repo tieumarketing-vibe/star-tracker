@@ -7,7 +7,11 @@ import { NavBar } from "@/components/nav-bar";
 import { Plus, Edit2, Trash2, Save, X } from "lucide-react";
 import type { Child } from "@/types";
 
-const AVATARS = ["🧒", "👧", "👦", "👶", "🐻", "🐰", "🦊", "🐱", "🐼", "🦁"];
+const AVATARS = [
+    "🧒", "👧", "👦", "👶", "🧒🏻", "👧🏻", "👦🏻",
+    "🐻", "🐰", "🦊", "🐱", "🐼", "🦁", "🐶", "🐸",
+    "🦄", "🐝", "🦋", "🐬", "🐠", "🌸", "⭐", "🌈",
+];
 
 export default function AdminChildrenPage() {
     const [children, setChildren] = useState<Child[]>([]);
@@ -15,6 +19,7 @@ export default function AdminChildrenPage() {
     const [editing, setEditing] = useState<Child | null>(null);
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState("");
+    const [selectedAvatar, setSelectedAvatar] = useState("");
     const router = useRouter();
 
     useEffect(() => {
@@ -58,6 +63,7 @@ export default function AdminChildrenPage() {
 
     function openEdit(child: Child) {
         setEditing(child);
+        setSelectedAvatar(child.avatar_url || "");
         setShowForm(true);
     }
 
@@ -70,7 +76,7 @@ export default function AdminChildrenPage() {
                         <h1 className="page-title">👶 Quản lý bé</h1>
                         <p className="page-subtitle" style={{ marginBottom: 0 }}>{children.length} bé</p>
                     </div>
-                    <button onClick={() => { setEditing(null); setShowForm(true); }} className="btn btn-primary">
+                    <button onClick={() => { setEditing(null); setSelectedAvatar(""); setShowForm(true); }} className="btn btn-primary">
                         <Plus size={18} /> Thêm bé
                     </button>
                 </div>
@@ -108,7 +114,7 @@ export default function AdminChildrenPage() {
 
                 {/* Form modal */}
                 {showForm && (
-                    <div className="modal-overlay" onClick={() => { setShowForm(false); setEditing(null); }}>
+                    <div className="modal-overlay" onClick={() => { setShowForm(false); setEditing(null); setSelectedAvatar(""); }}>
                         <div className="modal" onClick={e => e.stopPropagation()}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                 <h2 className="modal-title">{editing ? "Sửa thông tin bé" : "Thêm bé mới"}</h2>
@@ -124,21 +130,34 @@ export default function AdminChildrenPage() {
                                 </div>
 
                                 <div style={{ marginBottom: "1rem" }}>
-                                    <label className="input-label">Avatar (emoji)</label>
-                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", marginBottom: "0.5rem" }}>
+                                    <label className="input-label">Avatar</label>
+                                    {/* Preview */}
+                                    <div style={{ textAlign: "center", marginBottom: "0.75rem" }}>
+                                        <div style={{
+                                            width: 64, height: 64, borderRadius: "50%",
+                                            background: "linear-gradient(135deg, #FFB5C240, #B5EAD740)",
+                                            display: "inline-flex", alignItems: "center", justifyContent: "center",
+                                            fontSize: "2.2rem", border: "3px solid var(--mint)",
+                                        }}>
+                                            {selectedAvatar || "❓"}
+                                        </div>
+                                    </div>
+                                    {/* Emoji grid */}
+                                    <div style={{ display: "flex", flexWrap: "wrap", gap: "0.4rem", justifyContent: "center" }}>
                                         {AVATARS.map(a => (
                                             <button key={a} type="button" style={{
-                                                fontSize: "1.5rem", padding: "0.3rem", background: "none", border: "2px solid transparent",
-                                                borderRadius: "8px", cursor: "pointer",
+                                                fontSize: "1.4rem", padding: "0.35rem",
+                                                background: selectedAvatar === a ? "var(--mint-light)" : "white",
+                                                border: selectedAvatar === a ? "2.5px solid var(--mint-dark)" : "2px solid #eee",
+                                                borderRadius: "10px", cursor: "pointer",
+                                                transition: "all 0.15s",
+                                                transform: selectedAvatar === a ? "scale(1.15)" : "scale(1)",
                                             }}
-                                                onClick={(e) => {
-                                                    const input = e.currentTarget.closest("div")?.parentElement?.querySelector("input[name=avatar_url]") as HTMLInputElement;
-                                                    if (input) input.value = a;
-                                                }}
+                                                onClick={() => setSelectedAvatar(a)}
                                             >{a}</button>
                                         ))}
                                     </div>
-                                    <input name="avatar_url" className="input" defaultValue={editing?.avatar_url || ""} placeholder="Hoặc nhập emoji..." />
+                                    <input type="hidden" name="avatar_url" value={selectedAvatar} />
                                 </div>
 
                                 <div style={{ marginBottom: "1rem" }}>
