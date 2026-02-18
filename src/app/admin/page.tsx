@@ -72,10 +72,10 @@ export default function AdminPage() {
     }
 
     const adminLinks = [
-        { href: "/admin/children", icon: <Users size={28} />, label: "Quản lý bé", desc: `${children.length} bé`, color: "#FFB5C2" },
         { href: "/admin/activities", icon: <ListChecks size={28} />, label: "Hoạt động & Sao", desc: "Quản lý hoạt động đánh giá", color: "#B5EAD7" },
         { href: "/admin/penalties", icon: <AlertTriangle size={28} />, label: "Hình phạt", desc: "Quản lý danh sách vi phạm", color: "#FFDAB9" },
         { href: "/admin/rewards", icon: <Gift size={28} />, label: "Vật phẩm", desc: `${rewards.length} vật phẩm`, color: "#A0D2DB" },
+        { href: "/admin/children", icon: <Users size={28} />, label: "Quản lý bé", desc: "Thêm/sửa/xóa hồ sơ bé", color: "#FFB5C2" },
     ];
 
     return (
@@ -88,6 +88,43 @@ export default function AdminPage() {
                 {message && (
                     <div className="toast toast-success" style={{ position: "relative", right: "auto", bottom: "auto", marginBottom: "1rem" }}>
                         {message}
+                    </div>
+                )}
+
+                {/* Children quick access */}
+                {children.length > 0 && (
+                    <div style={{ marginBottom: "2rem" }}>
+                        <h3 style={{ fontWeight: 800, marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            👶 Các bé
+                        </h3>
+                        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
+                            {children.map((child: any) => (
+                                <Link key={child.id} href={`/dashboard/${child.id}`} style={{ textDecoration: "none", color: "inherit" }}>
+                                    <div className="card" style={{
+                                        display: "flex", alignItems: "center", gap: "0.75rem",
+                                        padding: "0.75rem 1.25rem", cursor: "pointer",
+                                        minWidth: 160, transition: "transform 0.2s",
+                                    }}
+                                        onMouseEnter={e => e.currentTarget.style.transform = "scale(1.03)"}
+                                        onMouseLeave={e => e.currentTarget.style.transform = "scale(1)"}
+                                    >
+                                        <div className="avatar" style={{
+                                            width: 48, height: 48, fontSize: "1.6rem",
+                                            background: "linear-gradient(135deg, #FFD6DD, #FFDAB9)",
+                                        }}>
+                                            {child.avatar_url || "🧒"}
+                                        </div>
+                                        <div>
+                                            <div style={{ fontWeight: 800, fontSize: "1rem" }}>{child.name}</div>
+                                            <div style={{ fontSize: "0.8rem", color: "var(--text-light)" }}>
+                                                Bấm để xem
+                                            </div>
+                                        </div>
+                                        <ChevronRight size={18} color="var(--text-muted)" />
+                                    </div>
+                                </Link>
+                            ))}
+                        </div>
                     </div>
                 )}
 

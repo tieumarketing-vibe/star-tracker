@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { signOut, getUserRole } from "@/lib/actions";
-import { Home, Award, ClipboardList, Settings, LogOut, Menu, X, CalendarDays, Baby } from "lucide-react";
+import { Home, Award, ClipboardList, Settings, LogOut, Menu, X, CalendarDays } from "lucide-react";
 import { useState, useEffect } from "react";
 
 export function NavBar() {
@@ -31,8 +31,9 @@ export function NavBar() {
         ? isParent
             ? [
                 { href: `/dashboard/${childId}`, icon: <Home size={18} />, label: "Tổng quan" },
+                { href: `/dashboard/${childId}/evaluate`, icon: <ClipboardList size={18} />, label: "Đánh giá" },
                 { href: `/dashboard/${childId}/calendar`, icon: <CalendarDays size={18} />, label: "Lịch" },
-                { href: "/dashboard", icon: <Baby size={18} />, label: "Quản lý bé" },
+                { href: `/dashboard/${childId}/rewards`, icon: <Award size={18} />, label: "Đổi thưởng" },
                 { href: "/admin", icon: <Settings size={18} />, label: "Quản trị" },
             ]
             : [
@@ -42,14 +43,13 @@ export function NavBar() {
                 { href: `/dashboard/${childId}/rewards`, icon: <Award size={18} />, label: "Đổi thưởng" },
             ]
         : [
-            { href: "/dashboard", icon: <Baby size={18} />, label: isParent ? "Quản lý bé" : "Chọn bé" },
             ...(isParent ? [{ href: "/admin", icon: <Settings size={18} />, label: "Quản trị" }] : []),
         ];
 
     return (
         <>
             <nav className="nav">
-                <Link href="/dashboard" style={{ textDecoration: "none" }}>
+                <Link href={isParent ? "/admin" : "/dashboard"} style={{ textDecoration: "none" }}>
                     <span className="nav-logo">⭐ Star Tracker</span>
                 </Link>
 
@@ -134,7 +134,7 @@ export function NavBar() {
 
             {/* Mobile bottom nav */}
             <div className="mobile-nav">
-                {links.slice(0, isParent ? 4 : 5).map((link) => (
+                {links.slice(0, 5).map((link) => (
                     <Link
                         key={link.href}
                         href={link.href}
@@ -144,16 +144,6 @@ export function NavBar() {
                         <span>{link.label}</span>
                     </Link>
                 ))}
-                {isParent && (
-                    <button
-                        onClick={handleLogout}
-                        className="mobile-nav-item"
-                        style={{ background: "none", border: "none", cursor: "pointer", color: "#c44" }}
-                    >
-                        <LogOut size={18} />
-                        <span>Thoát</span>
-                    </button>
-                )}
             </div>
 
             <style jsx>{`

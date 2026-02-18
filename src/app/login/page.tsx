@@ -3,11 +3,10 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { signIn, signUp } from "@/lib/actions";
-import { Star, User, Mail } from "lucide-react";
+import { Star } from "lucide-react";
 
 export default function LoginPage() {
     const [isSignUp, setIsSignUp] = useState(false);
-    const [loginMode, setLoginMode] = useState<"email" | "username">("email");
     const [error, setError] = useState("");
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState("");
@@ -86,53 +85,13 @@ export default function LoginPage() {
                         </>
                     ) : (
                         <>
-                            {/* Login mode toggle */}
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0.5rem", marginBottom: "1.25rem" }}>
-                                <button
-                                    type="button"
-                                    onClick={() => setLoginMode("email")}
-                                    style={{
-                                        padding: "0.6rem",
-                                        borderRadius: "var(--radius-sm)",
-                                        border: loginMode === "email" ? "2px solid var(--mint-dark)" : "2px solid #eee",
-                                        background: loginMode === "email" ? "var(--mint-light)" : "white",
-                                        cursor: "pointer",
-                                        display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
-                                        fontFamily: "Nunito", fontWeight: 700, fontSize: "0.85rem",
-                                        color: loginMode === "email" ? "#2a7a5a" : "var(--text-light)",
-                                        transition: "all 0.2s",
-                                    }}
-                                >
-                                    <Mail size={16} /> Ba Mẹ
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => setLoginMode("username")}
-                                    style={{
-                                        padding: "0.6rem",
-                                        borderRadius: "var(--radius-sm)",
-                                        border: loginMode === "username" ? "2px solid var(--pink-dark)" : "2px solid #eee",
-                                        background: loginMode === "username" ? "var(--pink-light)" : "white",
-                                        cursor: "pointer",
-                                        display: "flex", alignItems: "center", justifyContent: "center", gap: "0.4rem",
-                                        fontFamily: "Nunito", fontWeight: 700, fontSize: "0.85rem",
-                                        color: loginMode === "username" ? "var(--pink-dark)" : "var(--text-light)",
-                                        transition: "all 0.2s",
-                                    }}
-                                >
-                                    <User size={16} /> Bé
-                                </button>
-                            </div>
-
                             <div style={{ marginBottom: "1rem" }}>
-                                <label className="input-label">
-                                    {loginMode === "email" ? "Email" : "Tên đăng nhập"}
-                                </label>
+                                <label className="input-label">Email hoặc tên đăng nhập</label>
                                 <input
                                     name="email"
-                                    type={loginMode === "email" ? "email" : "text"}
+                                    type="text"
                                     className="input"
-                                    placeholder={loginMode === "email" ? "email@example.com" : "Nhập tên đăng nhập của bé..."}
+                                    placeholder="Email hoặc tên đăng nhập..."
                                     required
                                 />
                             </div>
@@ -169,7 +128,7 @@ export default function LoginPage() {
                         style={{ width: "100%" }}
                         disabled={loading}
                     >
-                        {loading ? "Đang xử lý..." : isSignUp ? "Đăng Ký (Ba Mẹ)" : "Đăng Nhập"}
+                        {loading ? "Đang xử lý..." : isSignUp ? "Đăng Ký" : "Đăng Nhập"}
                     </button>
                 </form>
 
@@ -182,7 +141,7 @@ export default function LoginPage() {
                             cursor: "pointer", fontFamily: "Nunito", fontSize: "0.9rem",
                         }}
                     >
-                        {isSignUp ? "Đã có tài khoản? Đăng nhập" : "Ba Mẹ chưa có tài khoản? Đăng ký"}
+                        {isSignUp ? "Đã có tài khoản? Đăng nhập" : "Chưa có tài khoản? Đăng ký"}
                     </button>
                 </div>
             </div>
