@@ -31,7 +31,11 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
         });
     }, [params]);
 
-    const filtered = filter === "all" ? rewards.filter(r => !r.is_free_daily) : rewards.filter(r => r.tier === filter && !r.is_free_daily);
+    // IDs of rewards already redeemed (non-free)
+    const redeemedIds = new Set(redemptions.filter((r: any) => r.stars_spent > 0).map((r: any) => r.reward_id));
+
+    const filtered = (filter === "all" ? rewards.filter(r => !r.is_free_daily) : rewards.filter(r => r.tier === filter && !r.is_free_daily))
+        .filter(r => !redeemedIds.has(r.id));
     const freeDaily = rewards.filter(r => r.is_free_daily);
 
     async function handleRedeem(reward: Reward) {
@@ -287,42 +291,39 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
                     })}
                 </div>
 
-                {/* Redemption history */}
-                {redemptions.length > 0 && (
+                {/* Redemption history (exclude free daily) */}
+                {redemptions.filter((r: any) => r.stars_spent > 0).length > 0 && (
                     <div style={{ marginTop: "3rem" }}>
                         <h2 style={{ fontWeight: 800, fontSize: "1.3rem", marginBottom: "1rem" }}>🎊 Lịch sử đổi thưởng</h2>
-                        <div className="table-wrapper">
-                            <table className="table">
-                                <thead>
-                                    <tr>
-                                        <th>Vật phẩm</th>
-                                        <th>Sao</th>
-                                        <th>Trạng thái</th>
-                                        <th>Ngày đổi</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {redemptions.map((red: any) => (
-                                        <tr key={red.id}>
-                                            <td style={{ fontWeight: 700 }}>{red.reward?.name || "—"}</td>
-                                            <td>
-                                                <span style={{ fontWeight: 700, color: "#8a7020" }}>
-                                                    {red.stars_spent} ⭐
-                                                </span>
-                                            </td>
-                                            <td>
-                                                <span className={`badge badge-${red.status}`}>
-                                                    {statusIcons[red.status]}
-                                                    {red.status === "pending" ? "Chờ duyệt" : red.status === "approved" ? "Đã duyệt" : "Từ chối"}
-                                                </span>
-                                            </td>
-                                            <td style={{ color: "var(--text-light)", fontSize: "0.85rem" }}>
-                                                {new Date(red.redeemed_at).toLocaleDateString("vi-VN")}
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
+                        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+                            {redemptions.filter((r: any) => r.stars_spent > 0).map((red: any) => (
+                                <div key={red.id} className="card" style={{
+                                    display: "flex", alignItems: "center", gap: "1rem",
+                                    padding: "0.75rem 1rem",
+                                }}>
+                                    <div style={{
+                                        width: 48, height: 48, borderRadius: "var(--radius-sm)",
+                                        background: red.reward?.image_url
+                                            ? `url(${red.reward.image_url}) center/cover`
+                                            : "linear-gradient(135deg, #FFD6DD, #D4F5E9)",
+                                        display: "flex", alignItems: "center", justifyContent: "center",
+                                        flexShrink: 0,
+                                    }}>
+                                        {!red.reward?.image_url && <Gift size={20} color="#E8899A" />}
+                                    </div>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontWeight: 800, fontSize: "0.95rem" }}>{red.reward?.name || "—"}</div>
+                                        <div style={{ fontSize: "0.8rem", color: "var(--text-light)", display: "flex", gap: "0.75rem", marginTop: "0.2rem" }}>
+                                            <span>📅 {new Date(red.redeemed_at).toLocaleDateString("vi-VN", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" })}</span>
+                                            <span style={{ fontWeight: 700, color: "#8a7020" }}>{red.stars_spent} ⭐</span>
+                                        </div>
+                                    </div>
+                                    <span className={`badge badge-${red.status}`} style={{ flexShrink: 0 }}>
+                                        {statusIcons[red.status]}
+                                        {red.status === "pending" ? "Chờ" : red.status === "approved" ? "✓" : "✗"}
+                                    </span>
+                                </div>
+                            ))}
                         </div>
                     </div>
                 )}
