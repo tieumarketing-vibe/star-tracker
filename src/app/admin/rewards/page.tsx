@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { getAllRewards, createReward, updateReward, approveRedemption, deleteRedemption } from "@/lib/actions";
+import { getAllRewards, createReward, updateReward, deleteReward, approveRedemption, deleteRedemption } from "@/lib/actions";
 import { NavBar } from "@/components/nav-bar";
 import { Plus, Edit2, Save, X, Star, Gift, Camera, Link, ImagePlus, Check, Trash2, Clock } from "lucide-react";
 import type { Reward } from "@/types";
@@ -141,6 +141,18 @@ export default function AdminRewardsPage() {
         setImageMode(reward?.image_url ? "url" : "upload");
         setIsFreeDailyChecked(reward?.is_free_daily || false);
         setShowForm(true);
+    }
+
+    async function handleDelete(id: string) {
+        if (!confirm("Bạn có chắc muốn xóa vật phẩm này? Thao tác này không thể hoàn tác!")) return;
+        setLoading(true);
+        await deleteReward(id);
+        setShowForm(false);
+        setEditing(null);
+        setImagePreview("");
+        await loadData();
+        router.refresh();
+        setLoading(false);
     }
 
     const tierLabels: Record<string, string> = { weekly: "Tuần", monthly: "Tháng", yearly: "Năm" };
@@ -474,9 +486,19 @@ export default function AdminRewardsPage() {
                                     </div>
                                 )}
 
-                                <button type="submit" className="btn btn-primary" style={{ width: "100%" }} disabled={loading || uploading}>
-                                    <Save size={16} /> {loading ? "Đang lưu..." : uploading ? "Đang upload..." : "Lưu"}
-                                </button>
+                                <div style={{ display: "flex", gap: "0.75rem" }}>
+                                    {editing && (
+                                        <button type="button" onClick={() => handleDelete(editing.id)} className="btn" style={{
+                                            background: "#FFF0F0", color: "#c44", border: "2px solid #FFCACA",
+                                            fontWeight: 800, flex: "0 0 auto",
+                                        }} disabled={loading}>
+                                            <Trash2 size={16} /> Xóa
+                                        </button>
+                                    )}
+                                    <button type="submit" className="btn btn-primary" style={{ flex: 1 }} disabled={loading || uploading}>
+                                        <Save size={16} /> {loading ? "Đang lưu..." : uploading ? "Đang upload..." : "Lưu"}
+                                    </button>
+                                </div>
                             </form>
                         </div>
                     </div>

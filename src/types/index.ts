@@ -78,7 +78,26 @@ export interface Reward {
     tier: "weekly" | "monthly" | "yearly";
     is_active: boolean;
     is_free_daily: boolean;
+    is_weekly_challenge: boolean;
+    weekly_bonus_stars: number;
     created_at: string;
+}
+
+export interface WeeklyChallengeProgress {
+    id: string;
+    child_id: string;
+    reward_id: string;
+    week_start: string;
+    day_1: boolean;
+    day_2: boolean;
+    day_3: boolean;
+    day_4: boolean;
+    day_5: boolean;
+    day_6: boolean;
+    day_7: boolean;
+    bonus_awarded: boolean;
+    created_at: string;
+    reward?: Reward;
 }
 
 export interface RewardRedemption {

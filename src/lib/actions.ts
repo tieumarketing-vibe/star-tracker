@@ -316,6 +316,16 @@ export async function updatePenaltyType(id: string, formData: FormData) {
     return { success: true };
 }
 
+export async function deletePenaltyType(id: string) {
+    const supabase = await createClient();
+    // Delete related evaluation penalties first
+    await supabase.from("evaluation_penalties").delete().eq("penalty_type_id", id);
+    const { error } = await supabase.from("penalty_types").delete().eq("id", id);
+    if (error) return { error: error.message };
+    revalidatePath("/admin/penalties");
+    return { success: true };
+}
+
 // ============================================
 // DAILY EVALUATION
 // ============================================
@@ -564,6 +574,8 @@ export async function createReward(formData: FormData) {
         star_cost: parseInt(formData.get("star_cost") as string) || 10,
         tier: formData.get("tier") as string || "weekly",
         is_free_daily: formData.get("is_free_daily") === "true",
+        is_weekly_challenge: formData.get("is_weekly_challenge") === "true",
+        weekly_bonus_stars: parseInt(formData.get("weekly_bonus_stars") as string) || 5,
     });
     if (error) return { error: error.message };
     revalidatePath("/admin/rewards");
@@ -580,10 +592,128 @@ export async function updateReward(id: string, formData: FormData) {
         tier: formData.get("tier") as string,
         is_active: formData.get("is_active") === "true",
         is_free_daily: formData.get("is_free_daily") === "true",
+        is_weekly_challenge: formData.get("is_weekly_challenge") === "true",
+        weekly_bonus_stars: parseInt(formData.get("weekly_bonus_stars") as string) || 5,
     }).eq("id", id);
     if (error) return { error: error.message };
     revalidatePath("/admin/rewards");
     return { success: true };
+}
+
+export async function deleteReward(id: string) {
+    const supabase = await createClient();
+    // Delete related data first
+    await supabase.from("weekly_challenge_progress").delete().eq("reward_id", id);
+    await supabase.from("reward_redemptions").delete().eq("reward_id", id);
+    const { error } = await supabase.from("rewards").delete().eq("id", id);
+    if (error) return { error: error.message };
+    revalidatePath("/admin/rewards");
+    return { success: true };
+}
+
+// ============================================
+// WEEKLY CHALLENGE
+// ============================================
+
+function getWeekStart(): string {
+    const now = new Date();
+    const day = now.getDay(); // 0=Sun, 1=Mon, ...
+    const diff = day === 0 ? 6 : day - 1; // Monday = start of week
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - diff);
+    return monday.toISOString().split("T")[0];
+}
+
+export async function getWeeklyChallengeProgress(childId: string) {
+    const supabase = await createClient();
+    const weekStart = getWeekStart();
+
+    const { data } = await supabase
+        .from("weekly_challenge_progress")
+        .select("*, reward:rewards(*)")
+        .eq("child_id", childId)
+        .eq("week_start", weekStart);
+    return data || [];
+}
+
+export async function checkInWeeklyChallenge(childId: string, rewardId: string) {
+    const supabase = await createClient();
+    const weekStart = getWeekStart();
+
+    const now = new Date();
+    const day = now.getDay(); // 0=Sun, 1=Mon
+    const dayIndex = day === 0 ? 7 : day; // Mon=1, Tue=2, ..., Sun=7
+    const dayColumn = `day_${dayIndex}` as `day_${1 | 2 | 3 | 4 | 5 | 6 | 7}`;
+
+    // Get or create progress record
+    let { data: progress } = await supabase
+        .from("weekly_challenge_progress")
+        .select("*")
+        .eq("child_id", childId)
+        .eq("reward_id", rewardId)
+        .eq("week_start", weekStart)
+        .single();
+
+    if (!progress) {
+        const { data: newProgress, error } = await supabase
+            .from("weekly_challenge_progress")
+            .insert({
+                child_id: childId,
+                reward_id: rewardId,
+                week_start: weekStart,
+                [dayColumn]: true,
+            })
+            .select("*")
+            .single();
+        if (error) return { error: error.message };
+        progress = newProgress;
+    } else {
+        if (progress[dayColumn]) {
+            return { error: "Hôm nay đã check-in rồi! ✅" };
+        }
+        const { error } = await supabase
+            .from("weekly_challenge_progress")
+            .update({ [dayColumn]: true })
+            .eq("id", progress.id);
+        if (error) return { error: error.message };
+        progress[dayColumn] = true;
+    }
+
+    // Check if all 7 days completed
+    const allDone = progress.day_1 && progress.day_2 && progress.day_3 &&
+        progress.day_4 && progress.day_5 && progress.day_6 && progress.day_7;
+
+    if (allDone && !progress.bonus_awarded) {
+        // Get reward to know bonus stars
+        const { data: reward } = await supabase
+            .from("rewards")
+            .select("weekly_bonus_stars, name")
+            .eq("id", rewardId)
+            .single();
+
+        const bonusStars = reward?.weekly_bonus_stars || 5;
+
+        // Award bonus stars
+        await supabase.from("star_transactions").insert({
+            child_id: childId,
+            type: "earn",
+            amount: bonusStars,
+            description: `🏆 Hoàn thành 7 ngày: ${reward?.name}`,
+            reference_id: progress.id,
+        });
+
+        // Mark as awarded
+        await supabase
+            .from("weekly_challenge_progress")
+            .update({ bonus_awarded: true })
+            .eq("id", progress.id);
+
+        revalidatePath(`/dashboard/${childId}`);
+        return { success: true, bonusAwarded: true, bonusStars };
+    }
+
+    revalidatePath(`/dashboard/${childId}`);
+    return { success: true, bonusAwarded: false, daysCompleted: dayIndex };
 }
 
 export async function redeemReward(childId: string, rewardId: string) {

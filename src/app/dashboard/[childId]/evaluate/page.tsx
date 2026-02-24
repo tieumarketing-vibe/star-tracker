@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getActivityTypes, getPenaltyTypes, submitEvaluation, getTodayEvaluation } from "@/lib/actions";
+import { getActivityTypes, getPenaltyTypes, submitEvaluation, getTodayEvaluation, getRewards, getWeeklyChallengeProgress, checkInWeeklyChallenge } from "@/lib/actions";
 import { NavBar } from "@/components/nav-bar";
 import { StarRain } from "@/components/star-rain";
 import { Star, Send, AlertTriangle, CheckCircle } from "lucide-react";
-import type { ActivityType, PenaltyType, EvaluationFormData } from "@/types";
+import type { ActivityType, PenaltyType, EvaluationFormData, Reward } from "@/types";
 
 function StarRating({ level, onChange, maxStars = 3 }: { level: number; onChange: (l: number) => void; maxStars?: number }) {
     return (
@@ -38,20 +38,30 @@ export default function EvaluatePage({ params }: { params: Promise<{ childId: st
     const [alreadyEvaluated, setAlreadyEvaluated] = useState(false);
     const [lastUpdated, setLastUpdated] = useState<string>("");
     const [starRainTrigger, setStarRainTrigger] = useState(0);
+    const [weeklyChallenges, setWeeklyChallenges] = useState<Reward[]>([]);
+    const [weeklyProgress, setWeeklyProgress] = useState<any[]>([]);
+    const [checkInLoading, setCheckInLoading] = useState<string | null>(null);
+    const [checkInMsg, setCheckInMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
     const router = useRouter();
 
     useEffect(() => {
         params.then(async (p) => {
             setChildId(p.childId);
-            const [acts, pens] = await Promise.all([getActivityTypes(), getPenaltyTypes()]);
+            const [acts, pens, rewards, weekly] = await Promise.all([
+                getActivityTypes(),
+                getPenaltyTypes(),
+                getRewards(),
+                getWeeklyChallengeProgress(p.childId),
+            ]);
             setActivities(acts);
             setPenalties(pens);
+            setWeeklyChallenges(rewards.filter((r: Reward) => r.is_weekly_challenge));
+            setWeeklyProgress(weekly);
 
             // Check if already evaluated today
             const today = await getTodayEvaluation(p.childId);
             if (today) {
                 setAlreadyEvaluated(true);
-                // Pre-fill with existing data
                 const existingRatings: Record<string, number> = {};
                 today.evaluation_details?.forEach((d: any) => {
                     existingRatings[d.activity_type_id] = d.star_level;
@@ -64,6 +74,23 @@ export default function EvaluatePage({ params }: { params: Promise<{ childId: st
             }
         });
     }, [params]);
+
+    async function handleCheckIn(rewardId: string) {
+        setCheckInLoading(rewardId);
+        const result = await checkInWeeklyChallenge(childId, rewardId);
+        if (result.error) {
+            setCheckInMsg({ type: "error", text: result.error });
+        } else if (result.bonusAwarded) {
+            setCheckInMsg({ type: "success", text: `🏆 Tuyệt vời! Hoàn thành 7 ngày, nhận +${result.bonusStars} ⭐!` });
+            setStarRainTrigger(prev => prev + 1);
+        } else {
+            setCheckInMsg({ type: "success", text: `✅ Check-in thành công!` });
+        }
+        const weekly = await getWeeklyChallengeProgress(childId);
+        setWeeklyProgress(weekly);
+        setCheckInLoading(null);
+        setTimeout(() => setCheckInMsg(null), 3000);
+    }
 
     function togglePenalty(id: string) {
         setSelectedPenalties(prev =>
@@ -150,6 +177,135 @@ export default function EvaluatePage({ params }: { params: Promise<{ childId: st
                                 })}
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* Weekly Challenges */}
+                {weeklyChallenges.length > 0 && (
+                    <div style={{ marginBottom: "2rem" }}>
+                        <h2 style={{ fontWeight: 800, fontSize: "1.1rem", marginBottom: "0.75rem", display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            🔥 Thử thách tuần
+                        </h2>
+
+                        {checkInMsg && (
+                            <div className={`toast toast-${checkInMsg.type}`} style={{ position: "relative", marginBottom: "0.75rem", right: "auto", bottom: "auto" }}>
+                                {checkInMsg.text}
+                            </div>
+                        )}
+
+                        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+                            {weeklyChallenges.map(challenge => {
+                                const progress = weeklyProgress.find((p: any) => p.reward_id === challenge.id);
+                                const dayLabels = ["T2", "T3", "T4", "T5", "T6", "T7", "CN"];
+                                const now = new Date();
+                                const todayIndex = now.getDay() === 0 ? 7 : now.getDay();
+                                const todayChecked = progress ? progress[`day_${todayIndex}`] : false;
+                                const daysCompleted = progress ? [1, 2, 3, 4, 5, 6, 7].filter(d => progress[`day_${d}`]).length : 0;
+                                const allDone = daysCompleted === 7;
+
+                                return (
+                                    <div key={challenge.id} className="card" style={{
+                                        borderLeft: allDone ? "4px solid #4ECDC4" : "4px solid #FF9800",
+                                        background: allDone ? "linear-gradient(135deg, #F0FFF4, #E8F5E9)" : "white",
+                                    }}>
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "0.75rem" }}>
+                                            <div>
+                                                <h3 style={{ fontWeight: 800, fontSize: "1rem" }}>{challenge.name}</h3>
+                                                {challenge.description && (
+                                                    <p style={{ fontSize: "0.8rem", color: "var(--text-light)", marginTop: "0.2rem" }}>
+                                                        {challenge.description}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div style={{
+                                                background: allDone ? "linear-gradient(135deg, #4ECDC4, #2a7a5a)" : "linear-gradient(135deg, #FF9800, #EE5A24)",
+                                                color: "white", padding: "0.2rem 0.6rem",
+                                                borderRadius: "100px", fontSize: "0.75rem", fontWeight: 800,
+                                                whiteSpace: "nowrap",
+                                            }}>
+                                                {allDone ? "🏆 Hoàn thành!" : `+${challenge.weekly_bonus_stars}⭐`}
+                                            </div>
+                                        </div>
+
+                                        {/* 7-day progress circles */}
+                                        <div style={{ display: "flex", gap: "0.35rem", justifyContent: "space-between", marginBottom: "0.75rem" }}>
+                                            {[1, 2, 3, 4, 5, 6, 7].map(dayNum => {
+                                                const isDone = progress ? progress[`day_${dayNum}`] : false;
+                                                const isToday = dayNum === todayIndex;
+                                                return (
+                                                    <div key={dayNum} style={{
+                                                        display: "flex", flexDirection: "column", alignItems: "center", gap: "0.25rem", flex: 1,
+                                                    }}>
+                                                        <span style={{ fontSize: "0.65rem", fontWeight: 700, color: isToday ? "#FF9800" : "var(--text-muted)" }}>
+                                                            {dayLabels[dayNum - 1]}
+                                                        </span>
+                                                        <div style={{
+                                                            width: 32, height: 32, borderRadius: "50%",
+                                                            display: "flex", alignItems: "center", justifyContent: "center",
+                                                            fontSize: "0.85rem", fontWeight: 800,
+                                                            background: isDone
+                                                                ? "linear-gradient(135deg, #4ECDC4, #2a7a5a)"
+                                                                : isToday
+                                                                    ? "linear-gradient(135deg, #FFF3E0, #FFE0B2)"
+                                                                    : "#f0f0f0",
+                                                            color: isDone ? "white" : isToday ? "#E65100" : "#ccc",
+                                                            border: isToday && !isDone ? "2px solid #FF9800" : "none",
+                                                            transition: "all 0.3s",
+                                                        }}>
+                                                            {isDone ? "✓" : dayNum}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        {/* Progress bar */}
+                                        <div style={{
+                                            width: "100%", height: "6px", background: "#f0f0f0",
+                                            borderRadius: "100px", overflow: "hidden", marginBottom: "0.75rem",
+                                        }}>
+                                            <div style={{
+                                                width: `${(daysCompleted / 7) * 100}%`,
+                                                height: "100%", borderRadius: "100px",
+                                                background: allDone
+                                                    ? "linear-gradient(90deg, #4ECDC4, #2a7a5a)"
+                                                    : "linear-gradient(90deg, #FF9800, #EE5A24)",
+                                                transition: "width 0.6s ease",
+                                            }} />
+                                        </div>
+
+                                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                            <span style={{ fontSize: "0.8rem", fontWeight: 700, color: "var(--text-light)" }}>
+                                                {daysCompleted}/7 ngày
+                                            </span>
+                                            {allDone ? (
+                                                <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "#2a7a5a" }}>
+                                                    🎉 Đã nhận +{challenge.weekly_bonus_stars}⭐!
+                                                </span>
+                                            ) : (
+                                                <button
+                                                    onClick={() => handleCheckIn(challenge.id)}
+                                                    disabled={todayChecked || checkInLoading === challenge.id}
+                                                    className={`btn btn-sm ${todayChecked ? '' : 'btn-primary'}`}
+                                                    style={{
+                                                        opacity: todayChecked ? 0.6 : 1,
+                                                        background: todayChecked ? "#E8F5E9" : undefined,
+                                                        color: todayChecked ? "#2a7a5a" : undefined,
+                                                    }}
+                                                >
+                                                    {checkInLoading === challenge.id
+                                                        ? "..."
+                                                        : todayChecked
+                                                            ? "✅ Đã check-in"
+                                                            : "🔥 Check-in hôm nay"
+                                                    }
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
                 )}
 
