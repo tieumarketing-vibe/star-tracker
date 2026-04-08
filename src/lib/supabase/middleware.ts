@@ -4,9 +4,19 @@ import { NextResponse, type NextRequest } from "next/server";
 export async function updateSession(request: NextRequest) {
     let supabaseResponse = NextResponse.next({ request });
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    console.log("Middleware Supabase URL:", supabaseUrl);
+
+    if (!supabaseUrl || !supabaseKey) {
+        console.error("Supabase environment variables missing in middleware!");
+        return supabaseResponse;
+    }
+
     const supabase = createServerClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        supabaseUrl,
+        supabaseKey,
         {
             cookies: {
                 getAll() {
@@ -25,9 +35,13 @@ export async function updateSession(request: NextRequest) {
         }
     );
 
-    const {
-        data: { user },
-    } = await supabase.auth.getUser();
+    let user = null;
+    try {
+        const { data } = await supabase.auth.getUser();
+        user = data.user;
+    } catch (err) {
+        console.error("Middleware getUser error:", err);
+    }
 
     // Redirect unauthenticated users to login (except for login page)
     if (

@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { getRewards, getChildStarBalance, redeemReward, getRedemptions } from "@/lib/actions";
+import { getRewards, getChildStarBalance, redeemReward, getRedemptions, getActivityStarBalance, getActivityTypes } from "@/lib/actions";
 import { NavBar } from "@/components/nav-bar";
 import { Star, Gift, ShoppingBag, Clock, CheckCircle, XCircle } from "lucide-react";
-import type { Reward, RewardRedemption } from "@/types";
+import type { Reward, RewardRedemption, ActivityType } from "@/types";
 
 export default function RewardsPage({ params }: { params: Promise<{ childId: string }> }) {
     const [childId, setChildId] = useState("");
@@ -15,19 +15,33 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
     const [redemptions, setRedemptions] = useState<any[]>([]);
     const [loading, setLoading] = useState<string | null>(null);
     const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+    const [activityBalances, setActivityBalances] = useState<Record<string, number>>({});
+    const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
     const router = useRouter();
 
     useEffect(() => {
         params.then(async (p) => {
             setChildId(p.childId);
-            const [rwds, bal, reds] = await Promise.all([
+            const [rwds, bal, reds, acts] = await Promise.all([
                 getRewards(),
                 getChildStarBalance(p.childId),
                 getRedemptions(p.childId),
+                getActivityTypes(),
             ]);
             setRewards(rwds);
             setStars(bal);
             setRedemptions(reds);
+            setActivityTypes(acts);
+
+            // Load activity balances for restricted rewards
+            const restrictedIds = new Set(
+                rwds.filter(r => r.required_activity_type_id).map(r => r.required_activity_type_id!)
+            );
+            const balances: Record<string, number> = {};
+            for (const actId of restrictedIds) {
+                balances[actId] = await getActivityStarBalance(p.childId, actId);
+            }
+            setActivityBalances(balances);
         });
     }, [params]);
 
@@ -39,14 +53,31 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
     const freeDaily = rewards.filter(r => r.is_free_daily);
 
     async function handleRedeem(reward: Reward) {
-        if (!reward.is_free_daily && stars < reward.star_cost) {
-            setMessage({ type: "error", text: `Không đủ sao! Cần ${reward.star_cost} ⭐` });
+        const isRestricted = !!reward.required_activity_type_id;
+        const effectiveBalance = isRestricted
+            ? (activityBalances[reward.required_activity_type_id!] || 0)
+            : stars;
+
+        if (!reward.is_free_daily && effectiveBalance < reward.star_cost) {
+            const actName = isRestricted
+                ? activityTypes.find(a => a.id === reward.required_activity_type_id)?.name || "task"
+                : "";
+            setMessage({
+                type: "error", text: isRestricted
+                    ? `Không đủ sao từ "${actName}"! Cần ${reward.star_cost} ⭐`
+                    : `Không đủ sao! Cần ${reward.star_cost} ⭐`
+            });
             return;
         }
 
+        const actInfo = isRestricted
+            ? activityTypes.find(a => a.id === reward.required_activity_type_id)
+            : null;
         const confirmMsg = reward.is_free_daily
             ? `Nhận "${reward.name}" miễn phí hôm nay? 🎁`
-            : `Đổi "${reward.name}" với ${reward.star_cost} ⭐?`;
+            : isRestricted
+                ? `Đổi "${reward.name}" bằng ${reward.star_cost} ⭐ từ "${actInfo?.icon} ${actInfo?.name}"?`
+                : `Đổi "${reward.name}" với ${reward.star_cost} ⭐?`;
         if (!confirm(confirmMsg)) return;
 
         setLoading(reward.id);
@@ -55,7 +86,16 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
 
         if (result.success) {
             setMessage({ type: "success", text: reward.is_free_daily ? `Đã nhận "${reward.name}"! 🎉` : `Đã đổi "${reward.name}" thành công! 🎉` });
-            if (!reward.is_free_daily) setStars(prev => prev - reward.star_cost);
+            if (!reward.is_free_daily) {
+                if (!isRestricted) setStars(prev => prev - reward.star_cost);
+                else {
+                    setStars(prev => prev - reward.star_cost);
+                    setActivityBalances(prev => ({
+                        ...prev,
+                        [reward.required_activity_type_id!]: (prev[reward.required_activity_type_id!] || 0) - reward.star_cost,
+                    }));
+                }
+            }
             const reds = await getRedemptions(childId);
             setRedemptions(reds);
         } else {
@@ -173,18 +213,36 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
                 {/* Rewards grid */}
                 <div className="grid-cards">
                     {filtered.map(reward => {
-                        const canAfford = stars >= reward.star_cost;
-                        const progress = Math.min(100, Math.round((stars / reward.star_cost) * 100));
-                        const remaining = Math.max(0, reward.star_cost - stars);
+                        const isRestricted = !!reward.required_activity_type_id;
+                        const effectiveBalance = isRestricted
+                            ? (activityBalances[reward.required_activity_type_id!] || 0)
+                            : stars;
+                        const canAfford = effectiveBalance >= reward.star_cost;
+                        const progress = Math.min(100, Math.round((effectiveBalance / reward.star_cost) * 100));
+                        const remaining = Math.max(0, reward.star_cost - effectiveBalance);
+                        const actInfo = isRestricted
+                            ? activityTypes.find(a => a.id === reward.required_activity_type_id)
+                            : null;
                         return (
                             <div key={reward.id} className="card" style={{
                                 opacity: canAfford ? 1 : 0.75,
                                 position: "relative",
+                                borderLeft: isRestricted ? "4px solid #9B7FD4" : undefined,
                             }}>
                                 {/* Tier badge */}
                                 <span className={`badge badge-${reward.tier}`} style={{ position: "absolute", top: "1rem", right: "1rem", zIndex: 2 }}>
                                     {tierLabels[reward.tier]}
                                 </span>
+
+                                {/* Restricted badge */}
+                                {isRestricted && (
+                                    <span style={{
+                                        position: "absolute", top: "1rem", left: "1rem", zIndex: 2,
+                                        background: "linear-gradient(135deg, #667eea, #764ba2)",
+                                        color: "white", padding: "0.15rem 0.5rem",
+                                        borderRadius: "100px", fontSize: "0.65rem", fontWeight: 800,
+                                    }}>🔒 {actInfo?.icon} {actInfo?.name}</span>
+                                )}
 
                                 {/* Image or placeholder */}
                                 <div style={{
@@ -193,14 +251,16 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
                                     borderRadius: "var(--radius-sm)",
                                     background: reward.image_url
                                         ? `url(${reward.image_url}) center/cover`
-                                        : "linear-gradient(135deg, #FFD6DD, #D4F5E9)",
+                                        : isRestricted
+                                            ? "linear-gradient(135deg, #E8D6FF, #D6E4FF)"
+                                            : "linear-gradient(135deg, #FFD6DD, #D4F5E9)",
                                     display: "flex",
                                     alignItems: "center",
                                     justifyContent: "center",
                                     marginBottom: "1rem",
                                     fontSize: "3rem",
                                 }}>
-                                    {!reward.image_url && <Gift size={48} color="#E8899A" />}
+                                    {!reward.image_url && <Gift size={48} color={isRestricted ? "#9B7FD4" : "#E8899A"} />}
                                 </div>
 
                                 <h3 style={{ fontWeight: 800, fontSize: "1rem", marginBottom: "0.3rem" }}>{reward.name}</h3>
@@ -208,6 +268,19 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
                                     <p style={{ fontSize: "0.85rem", color: "var(--text-light)", marginBottom: "0.75rem" }}>
                                         {reward.description}
                                     </p>
+                                )}
+
+                                {/* Activity balance info for restricted rewards */}
+                                {isRestricted && (
+                                    <div style={{
+                                        display: "inline-flex", alignItems: "center", gap: "0.3rem",
+                                        background: "linear-gradient(135deg, #F0E6FF, #E8D6FF)",
+                                        padding: "0.25rem 0.6rem", borderRadius: "100px",
+                                        marginBottom: "0.5rem", fontSize: "0.75rem", fontWeight: 700,
+                                        color: "#764ba2",
+                                    }}>
+                                        {actInfo?.icon} Sao từ {actInfo?.name}: <strong>{effectiveBalance}</strong> ⭐
+                                    </div>
                                 )}
 
                                 {/* Progress bar */}
@@ -218,7 +291,7 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
                                     }}>
                                         <span style={{
                                             fontSize: "0.8rem", fontWeight: 800,
-                                            color: canAfford ? "#2a7a5a" : "#8a7020",
+                                            color: canAfford ? "#2a7a5a" : isRestricted ? "#764ba2" : "#8a7020",
                                         }}>
                                             {canAfford ? "✅ Đạt mục tiêu!" : `${progress}% mục tiêu`}
                                         </span>
@@ -226,7 +299,7 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
                                             fontSize: "0.7rem", fontWeight: 600,
                                             color: "var(--text-muted)",
                                         }}>
-                                            {stars}/{reward.star_cost} ⭐
+                                            {effectiveBalance}/{reward.star_cost} ⭐
                                         </span>
                                     </div>
                                     <div style={{
@@ -240,11 +313,13 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
                                             borderRadius: "100px",
                                             background: canAfford
                                                 ? "linear-gradient(90deg, #4ECDC4, #2a7a5a)"
-                                                : progress >= 70
-                                                    ? "linear-gradient(90deg, #FFE66D, #E8C94A)"
-                                                    : progress >= 40
-                                                        ? "linear-gradient(90deg, #FFD6DD, #E8899A)"
-                                                        : "linear-gradient(90deg, #E0E0E0, #BDBDBD)",
+                                                : isRestricted
+                                                    ? "linear-gradient(90deg, #B8A3E0, #9B7FD4)"
+                                                    : progress >= 70
+                                                        ? "linear-gradient(90deg, #FFE66D, #E8C94A)"
+                                                        : progress >= 40
+                                                            ? "linear-gradient(90deg, #FFD6DD, #E8899A)"
+                                                            : "linear-gradient(90deg, #E0E0E0, #BDBDBD)",
                                             transition: "width 0.6s ease",
                                         }} />
                                     </div>
@@ -255,7 +330,7 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
                                         }}>
                                             Còn thiếu {remaining} ⭐
                                             {progress >= 70 && (
-                                                <span style={{ color: "#E8C94A", fontWeight: 700 }}>
+                                                <span style={{ color: isRestricted ? "#9B7FD4" : "#E8C94A", fontWeight: 700 }}>
                                                     {" "}— 💪 Cố lên, bạn sắp đạt được mục tiêu rồi!
                                                 </span>
                                             )}
@@ -267,22 +342,26 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
                                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                     <div style={{
                                         display: "flex", alignItems: "center", gap: "0.3rem",
-                                        fontWeight: 800, color: "#8a7020", fontSize: "1.1rem",
+                                        fontWeight: 800, color: isRestricted ? "#764ba2" : "#8a7020", fontSize: "1.1rem",
                                     }}>
-                                        <Star size={18} fill="#FFE66D" color="#E8C94A" />
+                                        <Star size={18} fill={isRestricted ? "#B8A3E0" : "#FFE66D"} color={isRestricted ? "#9B7FD4" : "#E8C94A"} />
                                         {reward.star_cost}
                                     </div>
                                     <button
                                         onClick={() => handleRedeem(reward)}
                                         disabled={!canAfford || loading === reward.id}
-                                        className={`btn btn-sm ${canAfford ? "btn-mint" : ""}`}
+                                        className={`btn btn-sm ${canAfford ? (isRestricted ? "" : "btn-mint") : ""}`}
                                         style={{
                                             opacity: canAfford ? 1 : 0.5,
                                             cursor: canAfford ? "pointer" : "not-allowed",
+                                            ...(canAfford && isRestricted ? {
+                                                background: "linear-gradient(135deg, #667eea, #764ba2)",
+                                                color: "white", border: "none",
+                                            } : {}),
                                         }}
                                     >
                                         {loading === reward.id ? "..." : (
-                                            <><ShoppingBag size={14} /> {canAfford ? "Đổi" : "Không đủ sao"}</>
+                                            <><ShoppingBag size={14} /> {canAfford ? (isRestricted ? `Đổi sao ${actInfo?.icon || ""}` : "Đổi") : "Không đủ sao"}</>
                                         )}
                                     </button>
                                 </div>

@@ -2,10 +2,10 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { getAllRewards, createReward, updateReward, deleteReward, approveRedemption, deleteRedemption } from "@/lib/actions";
+import { getAllRewards, createReward, updateReward, deleteReward, approveRedemption, deleteRedemption, getAllActivityTypes } from "@/lib/actions";
 import { NavBar } from "@/components/nav-bar";
 import { Plus, Edit2, Save, X, Star, Gift, Camera, Link, ImagePlus, Check, Trash2, Clock } from "lucide-react";
-import type { Reward } from "@/types";
+import type { Reward, ActivityType } from "@/types";
 import { createBrowserClient } from "@supabase/ssr";
 
 export default function AdminRewardsPage() {
@@ -17,6 +17,8 @@ export default function AdminRewardsPage() {
     const [imageMode, setImageMode] = useState<"upload" | "url">("upload");
     const [uploading, setUploading] = useState(false);
     const [isFreeDailyChecked, setIsFreeDailyChecked] = useState(false);
+    const [activityTypes, setActivityTypes] = useState<ActivityType[]>([]);
+    const [selectedActivityTypeId, setSelectedActivityTypeId] = useState("");
     const [pendingRedemptions, setPendingRedemptions] = useState<any[]>([]);
     const [historyRedemptions, setHistoryRedemptions] = useState<any[]>([]);
     const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -35,8 +37,9 @@ export default function AdminRewardsPage() {
     useEffect(() => { loadData(); }, []);
 
     async function loadData() {
-        const data = await getAllRewards();
+        const [data, acts] = await Promise.all([getAllRewards(), getAllActivityTypes()]);
         setRewards(data);
+        setActivityTypes(acts);
 
         const supabase = getSupabase();
         const { data: pending } = await supabase
@@ -140,6 +143,7 @@ export default function AdminRewardsPage() {
         setImagePreview(reward?.image_url || "");
         setImageMode(reward?.image_url ? "url" : "upload");
         setIsFreeDailyChecked(reward?.is_free_daily || false);
+        setSelectedActivityTypeId(reward?.required_activity_type_id || "");
         setShowForm(true);
     }
 
@@ -201,6 +205,14 @@ export default function AdminRewardsPage() {
                                         color: "white", padding: "0.15rem 0.5rem",
                                         borderRadius: "100px", fontSize: "0.7rem", fontWeight: 800,
                                     }}>🎁 FREE mỗi ngày</span>
+                                )}
+                                {reward.required_activity_type_id && (
+                                    <span style={{
+                                        position: "absolute", bottom: 8, right: 8,
+                                        background: "linear-gradient(135deg, #667eea, #764ba2)",
+                                        color: "white", padding: "0.15rem 0.5rem",
+                                        borderRadius: "100px", fontSize: "0.7rem", fontWeight: 800,
+                                    }}>🔒 {activityTypes.find(a => a.id === reward.required_activity_type_id)?.name || "Sao riêng"}</span>
                                 )}
                             </div>
 
@@ -473,6 +485,33 @@ export default function AdminRewardsPage() {
                                     {isFreeDailyChecked && (
                                         <p style={{ fontSize: "0.8rem", color: "var(--mint-dark)", marginTop: "0.3rem", marginLeft: "1.5rem" }}>
                                             Bé được nhận miễn phí 1 lần/ngày, không tốn sao
+                                        </p>
+                                    )}
+                                </div>
+
+                                {/* Restricted to activity type */}
+                                <div style={{
+                                    marginBottom: "1rem", padding: "0.75rem",
+                                    background: selectedActivityTypeId ? "#F0E6FF" : "#f9f9f9",
+                                    borderRadius: "var(--radius-sm)",
+                                    border: selectedActivityTypeId ? "2px solid #9B7FD4" : "2px solid #eee",
+                                    transition: "all 0.2s",
+                                }}>
+                                    <label className="input-label" style={{ marginBottom: "0.4rem" }}>🔒 Yêu cầu sao từ task (tuỳ chọn)</label>
+                                    <select
+                                        name="required_activity_type_id"
+                                        className="select"
+                                        value={selectedActivityTypeId}
+                                        onChange={(e) => setSelectedActivityTypeId(e.target.value)}
+                                    >
+                                        <option value="">Không giới hạn — dùng sao chung</option>
+                                        {activityTypes.map(at => (
+                                            <option key={at.id} value={at.id}>{at.icon} {at.name}</option>
+                                        ))}
+                                    </select>
+                                    {selectedActivityTypeId && (
+                                        <p style={{ fontSize: "0.8rem", color: "#764ba2", marginTop: "0.3rem" }}>
+                                            ⚡ Chỉ đổi được bằng sao kiếm từ task này
                                         </p>
                                     )}
                                 </div>

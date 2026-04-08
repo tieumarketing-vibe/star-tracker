@@ -4,52 +4,74 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import type { EvaluationFormData } from "@/types";
 
+function friendlyError(err: unknown): string {
+    const stack = err instanceof Error ? err.stack : String(err);
+    if (stack?.includes("fetch failed") || stack?.includes("ENOTFOUND") || stack?.includes("ECONNREFUSED")) {
+        return "Không thể kết nối đến máy chủ. Vui lòng kiểm tra kết nối mạng hoặc thử lại sau.";
+    }
+    if (stack?.includes("ETIMEDOUT") || stack?.includes("ESOCKETTIMEDOUT")) {
+        return "Kết nối quá chậm. Vui lòng thử lại sau.";
+    }
+    // Return stack for debugging
+    return stack || "Lỗi không xác định";
+}
+
 // ============================================
 // AUTH ACTIONS
 // ============================================
 
 export async function signIn(formData: FormData) {
-    const supabase = await createClient();
-    let email = formData.get("email") as string;
-    const password = formData.get("password") as string;
+    try {
+        console.log("Starting signIn action...");
+        const supabase = await createClient();
+        console.log("Supabase client created.");
+        let email = formData.get("email") as string;
+        const password = formData.get("password") as string;
 
-    // Username login: convert to email format
-    if (!email.includes("@")) {
-        email = `${email.toLowerCase()}@startracker.app`;
+        // Username login: convert to email format
+        if (!email.includes("@")) {
+            email = `${email.toLowerCase()}@startracker.app`;
+        }
+
+        const { error, data } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) return { error: error.message === "fetch failed" ? friendlyError(error) : error.message };
+
+        // Check role for redirect
+        const role = data.user?.user_metadata?.role || "parent";
+        let childId: string | null = null;
+
+        if (role === "child") {
+            const { data: child } = await supabase
+                .from("children")
+                .select("id")
+                .eq("profile_id", data.user.id)
+                .single();
+            childId = child?.id || null;
+        }
+
+        return { success: true, role, childId };
+    } catch (err) {
+        return { error: friendlyError(err) };
     }
-
-    const { error, data } = await supabase.auth.signInWithPassword({ email, password });
-    if (error) return { error: error.message };
-
-    // Check role for redirect
-    const role = data.user?.user_metadata?.role || "parent";
-    let childId: string | null = null;
-
-    if (role === "child") {
-        const { data: child } = await supabase
-            .from("children")
-            .select("id")
-            .eq("profile_id", data.user.id)
-            .single();
-        childId = child?.id || null;
-    }
-
-    return { success: true, role, childId };
 }
 
 export async function signUp(formData: FormData) {
-    const supabase = await createClient();
-    const email = formData.get("email") as string;
-    const password = formData.get("password") as string;
-    const name = formData.get("name") as string;
+    try {
+        const supabase = await createClient();
+        const email = formData.get("email") as string;
+        const password = formData.get("password") as string;
+        const name = formData.get("name") as string;
 
-    const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: { data: { name, role: "parent" } },
-    });
-    if (error) return { error: error.message };
-    return { success: true };
+        const { error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { name, role: "parent" } },
+        });
+        if (error) return { error: error.message === "fetch failed" ? friendlyError(error) : error.message };
+        return { success: true };
+    } catch (err) {
+        return { error: friendlyError(err) };
+    }
 }
 
 export async function signOut() {
@@ -213,6 +235,15 @@ export async function getChildStarBalance(childId: string) {
     const supabase = await createClient();
     const { data } = await supabase.rpc("get_child_stars", { p_child_id: childId });
     return data ?? 0;
+}
+
+export async function getActivityStarBalance(childId: string, activityTypeId: string) {
+    const supabase = await createClient();
+    const { data } = await supabase.rpc("get_activity_star_balance", {
+        p_child_id: childId,
+        p_activity_type_id: activityTypeId,
+    });
+    return (data as number) ?? 0;
 }
 
 // ============================================
@@ -576,6 +607,7 @@ export async function createReward(formData: FormData) {
         is_free_daily: formData.get("is_free_daily") === "true",
         is_weekly_challenge: formData.get("is_weekly_challenge") === "true",
         weekly_bonus_stars: parseInt(formData.get("weekly_bonus_stars") as string) || 5,
+        required_activity_type_id: (formData.get("required_activity_type_id") as string) || null,
     });
     if (error) return { error: error.message };
     revalidatePath("/admin/rewards");
@@ -594,6 +626,7 @@ export async function updateReward(id: string, formData: FormData) {
         is_free_daily: formData.get("is_free_daily") === "true",
         is_weekly_challenge: formData.get("is_weekly_challenge") === "true",
         weekly_bonus_stars: parseInt(formData.get("weekly_bonus_stars") as string) || 5,
+        required_activity_type_id: (formData.get("required_activity_type_id") as string) || null,
     }).eq("id", id);
     if (error) return { error: error.message };
     revalidatePath("/admin/rewards");
@@ -742,8 +775,25 @@ export async function redeemReward(childId: string, rewardId: string) {
         if (existing && existing.length > 0) {
             return { error: "Hôm nay bé đã nhận phần thưởng này rồi! 🎁" };
         }
+    } else if (reward.required_activity_type_id) {
+        // Check activity-specific star balance for restricted rewards
+        const actBalance = await getActivityStarBalance(childId, reward.required_activity_type_id);
+        if (actBalance < reward.star_cost) {
+            const { data: activity } = await supabase
+                .from("activity_types")
+                .select("name, icon")
+                .eq("id", reward.required_activity_type_id)
+                .single();
+            return {
+                error: `Không đủ sao từ "${activity?.icon} ${activity?.name}"! Cần ${reward.star_cost} ⭐, hiện có ${actBalance} ⭐ từ task này`,
+            };
+        }
+        const stars = await getChildStarBalance(childId);
+        if (stars < reward.star_cost) {
+            return { error: `Không đủ sao tổng! Cần ${reward.star_cost} ⭐, hiện có ${stars} ⭐` };
+        }
     } else {
-        // Check star balance for non-free rewards
+        // Check main star balance for unrestricted rewards
         const stars = await getChildStarBalance(childId);
         if (stars < reward.star_cost) {
             return { error: `Không đủ sao! Cần ${reward.star_cost} ⭐, hiện có ${stars} ⭐` };

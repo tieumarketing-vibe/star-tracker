@@ -78,6 +78,7 @@ export interface Reward {
     tier: "weekly" | "monthly" | "yearly";
     is_active: boolean;
     is_free_daily: boolean;
+    required_activity_type_id: string | null;
     is_weekly_challenge: boolean;
     weekly_bonus_stars: number;
     created_at: string;
