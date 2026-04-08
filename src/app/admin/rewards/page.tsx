@@ -159,7 +159,7 @@ export default function AdminRewardsPage() {
         setLoading(false);
     }
 
-    const tierLabels: Record<string, string> = { weekly: "Tuần", monthly: "Tháng", yearly: "Năm" };
+    const tierLabels: Record<string, string> = { daily: "Ngày", weekly: "Tuần", monthly: "Tháng", yearly: "Năm" };
 
     return (
         <>
@@ -460,6 +460,7 @@ export default function AdminRewardsPage() {
                                     <div>
                                         <label className="input-label">Loại</label>
                                         <select name="tier" className="select" defaultValue={editing?.tier || "weekly"}>
+                                            <option value="daily">Ngày</option>
                                             <option value="weekly">Tuần</option>
                                             <option value="monthly">Tháng</option>
                                             <option value="yearly">Năm</option>

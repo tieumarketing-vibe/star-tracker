@@ -75,7 +75,7 @@ export interface Reward {
     description: string;
     image_url: string;
     star_cost: number;
-    tier: "weekly" | "monthly" | "yearly";
+    tier: "daily" | "weekly" | "monthly" | "yearly";
     is_active: boolean;
     is_free_daily: boolean;
     required_activity_type_id: string | null;

@@ -308,6 +308,11 @@ body {
   font-weight: 700;
 }
 
+.badge-daily {
+  background: var(--lavender-light);
+  color: #6a4a8a;
+}
+
 .badge-weekly {
   background: var(--mint-light);
   color: #2a7a5a;

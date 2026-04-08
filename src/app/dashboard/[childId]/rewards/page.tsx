@@ -106,6 +106,7 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
     }
 
     const tierLabels: Record<string, string> = {
+        daily: "Ngày",
         weekly: "Tuần",
         monthly: "Tháng",
         yearly: "Năm",
@@ -141,7 +142,7 @@ export default function RewardsPage({ params }: { params: Promise<{ childId: str
 
                 {/* Filter tabs */}
                 <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.5rem", flexWrap: "wrap" }}>
-                    {["all", "weekly", "monthly", "yearly"].map(f => (
+                    {["all", "daily", "weekly", "monthly", "yearly"].map(f => (
                         <button
                             key={f}
                             onClick={() => setFilter(f)}
